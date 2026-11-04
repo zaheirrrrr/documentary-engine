@@ -16,6 +16,23 @@ video:
   chapters_min: 5
   chapters_max: 8
 
+shorts:
+  # Vertical Shorts cut from a finished long video's research (de shorts <id>).
+  per_video: 3
+  target_words: 135            # ~50 seconds of narration
+  min_words: 105
+  max_words: 160
+  max_seconds: 59
+  rehook_gap_words: 30         # a new number, turn or reveal every ~8 seconds
+  resolution: [1080, 1920]
+  fps: 30
+  max_beat_words: 10           # a new shot every ~3 seconds
+  max_clip_seconds: 3.2
+  min_clip_seconds: 1.6
+  captions: {font: "Montserrat-VariableFont_wght.ttf", size: 92, y: 1340, fps: 15}
+  hook_text_seconds: 3.0
+  end_tail_seconds: 0.35       # end on the last word: dead air lowers watch time
+
 topics:
   # The channel's single promise. Every topic must fit it.
   promise: "The rise and fall of America's great builds and businesses"

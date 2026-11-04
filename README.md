@@ -15,7 +15,7 @@ rise and fall of America's great builds and businesses.
 |---|---|---|---|
 | 1 | research | Wikipedia + Library of Congress newspapers + Claude web search. Every quote is checked word for word against the fetched source. | `dossier.json`, `dossier.md`, `sources.json` |
 | 2 | outline | 5 cold-open hooks, scored; best one chosen. Chapter plan with turning lines. | `outline.json`, `outline.md` |
-| 3 | script | Full narration in the pack's style, inside the word budget. | `script.md` |
+| 3 | script | Full narration in the pack's style. Scored by the script checker (hooks, re-hooks, anti-AI writing rules, banned patterns) and rewritten until it scores 90+ with no hard fails. | `script.md`, `script_check.md` |
 | 4 | factcheck | Every claim checked against the dossier; exact fixes applied; leftovers listed. | `factcheck.md` |
 | 5 | **review_script** | **You** read and edit `script.md`, then `de approve`. | |
 | 6 | shotlist | Script split into 6–10 s beats in code (no words lost); Claude picks a visual per beat. | `shotlist.json` |
@@ -69,9 +69,33 @@ de published 1 https://youtu.be/...
 de notes 1 "Retention dipped at 4:10, chapter 3 too slow"
 ```
 
-Other commands: `de status [id]`, `de redo <id> --from footage --run`,
+Other commands: `de shorts <id> --run`, `de status [id]`, `de redo <id> --from footage --run`,
 `de new "My own topic" --wikipedia "Exact article" --era 1890-1930 --run`,
 `de usage`, `de new-pack <name>`.
+
+## Shorts
+
+Each long video can feed 2 to 3 vertical Shorts that pull viewers to it:
+
+```bash
+de shorts 1 --run        # plans 3 Shorts from video 1's research, writes and renders each
+```
+
+Each Short is its own project: about 50 seconds, one moment from the story,
+a hook in the first 3 seconds (also shown as on-screen text so it works on
+mute), a new shot every ~3 seconds, one-word captions burned in, ending on
+the last word. It stops at the script review and the final review like a
+long video. Settings live under `shorts:` in `pack.yaml`.
+
+## Script checker
+
+`engine/scriptcheck.py` scores narration out of 100 (hard fails cost 15,
+soft flags 5; pass = 90+ with no hard fails). Hard fails: em dashes,
+semicolons, "it's not X, it's Y", "not just X but Y", filler and stage
+directions, fake suspense, AI vocabulary, more than one one-word sentence,
+parallel repetition stacks. Soft flags: length, a weak first sentence, long
+sentences, rhetorical questions in the body, gaps with no re-hook, no ask at
+the end. Quote blocks are excluded (historic text keeps its punctuation).
 
 ## Topic scoring
 
@@ -117,3 +141,9 @@ tests/             unit tests + a full end-to-end render with simulated services
 ```
 
 Run tests: `pip install -e .[dev] && pytest`.
+
+## Claude skills
+
+`.claude/skills/` holds two skills that Claude Code loads when opened in this
+repo: `viral-video-writing` (writing and breaking down video scripts) and
+`famous-reel-editor` (editing talking-head reels). See THIRD_PARTY.md.

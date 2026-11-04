@@ -14,6 +14,7 @@ there. A finished stage is never re-run unless you reset it, so a crash at
 from __future__ import annotations
 
 import importlib
+import json
 import logging
 import traceback
 from dataclasses import dataclass, field
@@ -45,6 +46,8 @@ STAGES: list[tuple[str, str, str]] = [
 ]
 
 STAGE_NAMES = [s[0] for s in STAGES]
+# Shorts reuse the parent video's research, and YouTube picks Shorts covers from frames.
+SKIP_FOR_SHORTS = {"research", "outline", "thumbnail"}
 STAGE_ATTEMPTS = 2  # automatic whole-stage retries on top of per-call retries
 
 
@@ -59,6 +62,20 @@ class Context:
     angle: str
     dir: Path
     log: logging.Logger = field(default_factory=lambda: logging.getLogger("engine"))
+    fmt: str = "long"              # "long" or "short"
+    parent: int | None = None      # for shorts: the long video's project id
+
+    @property
+    def is_short(self) -> bool:
+        return self.fmt == "short"
+
+    def setting(self, key: str, default=None):
+        """A format-aware setting: pack `shorts.<key>` for shorts, `video.<key>` otherwise."""
+        section = "shorts" if self.is_short else "video"
+        value = self.pack.get(f"{section}.{key}")
+        if value is None and self.is_short:
+            value = self.pack.get(f"video.{key}")
+        return default if value is None else value
 
     def path(self, *parts: str) -> Path:
         p = self.dir.joinpath(*parts)
@@ -83,7 +100,13 @@ def build_context(settings: Settings, state: State, project_id: int) -> Context:
     logger.setLevel(logging.INFO)
 
     llm = LLM(settings, usage_hook=lambda s, u, unit, d: state.log_usage(project_id, s, u, unit, d))
-    return Context(settings, pack, state, llm, project_id, row["title"], row["angle"], project_dir, logger)
+    fmt, parent = "long", None
+    fmt_file = project_dir / "format.json"
+    if fmt_file.exists():
+        data = json.loads(fmt_file.read_text(encoding="utf-8"))
+        fmt, parent = data.get("format", "long"), data.get("parent")
+    return Context(settings, pack, state, llm, project_id, row["title"], row["angle"], project_dir, logger,
+                   fmt=fmt, parent=parent)
 
 
 def _load_stage(module: str) -> Callable[[Context], None]:
@@ -105,6 +128,9 @@ def run(settings: Settings, state: State, project_id: int, only: str | None = No
             continue
         current = done.get(name)
         if current and current["status"] in {"done", "approved"}:
+            continue
+        if ctx.is_short and name in SKIP_FOR_SHORTS:
+            state.mark_stage(project_id, name, "done")
             continue
 
         if module == GATE:

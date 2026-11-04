@@ -17,7 +17,7 @@ import random
 import subprocess
 from pathlib import Path
 
-from .. import cards
+from .. import cards, karaoke
 from ..util import read_json
 
 NO_ON_SCREEN_TITLE = {"closing", "conclusion", "outro", "epilogue", "intro", "introduction"}
@@ -109,10 +109,27 @@ def mix_audio(ctx, narration: Path, total: float, dest: Path) -> None:
     ctx.log.info("render: music bed %s", track.name)
 
 
+def burn_short_overlay(ctx, video: Path, total: float, w: int, h: int, fps: int, dest: Path) -> None:
+    """Shorts: one-word captions plus the on-screen hook in the first seconds."""
+    cfg = ctx.pack.get("shorts.captions", {}) or {}
+    words_path = ctx.dir / "words.json"
+    words = [(x["text"], x["start"], x["end"]) for x in read_json(words_path)] if words_path.exists() else []
+    hook_file = ctx.dir / "on_screen.txt"
+    hook = hook_file.read_text(encoding="utf-8").strip() if hook_file.exists() else ""
+    font_path = ctx.pack.path / "fonts" / str(cfg.get("font", "Montserrat-VariableFont_wght.ttf"))
+    listing = karaoke.build_overlay(
+        words, total, hook, float(ctx.setting("hook_text_seconds", 3.0)), ctx.dir / "render" / "captions",
+        (w, h), font_path, int(cfg.get("size", 92)), int(cfg.get("y", int(h * 0.70))),
+    )
+    _run(["-i", str(video), "-f", "concat", "-safe", "0", "-i", str(listing),
+          "-filter_complex", f"[1:v]fps={fps},format=rgba[cap];[0:v][cap]overlay=0:0:shortest=0:eof_action=pass,format=yuv420p[v]",
+          "-map", "[v]", "-map", "0:a", "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-c:a", "copy",
+          "-t", f"{total:.3f}", "-movflags", "+faststart", str(dest)])
+
+
 def run(ctx) -> None:
-    v = ctx.pack.get("video", {}) or {}
-    w, h = (int(x) for x in v.get("resolution", [1920, 1080]))
-    fps = int(v.get("fps", 30))
+    w, h = (int(x) for x in ctx.setting("resolution", [1920, 1080]))
+    fps = int(ctx.setting("fps", 30))
     grade = str(ctx.pack.get("footage.grade", "vintage"))
     accent = ctx.pack.get("thumbnail.colors.accent", "#E8B33A")
     font_dirs = [ctx.pack.path / "fonts"]
@@ -139,7 +156,8 @@ def run(ctx) -> None:
         if (beat.get("first_in_chapter") and beat.get("chapter", 0) > 0 and title
                 and title.lower() not in NO_ON_SCREEN_TITLE):
             overlay = cards.chapter_overlay(beat["chapter_title"], card_dir / f"chapter{beat['chapter']:02d}.png", (w, h), font_dirs)
-        fade_in, fade_out = i == 0, i == len(beats) - 1
+        # Shorts start on a moving frame and end on the last word (no fades, so they loop cleanly).
+        fade_in, fade_out = (i == 0 and not ctx.is_short), (i == len(beats) - 1 and not ctx.is_short)
         visual = beat["visual"].get("visual")
 
         if visual == "quote":
@@ -168,6 +186,9 @@ def run(ctx) -> None:
     mix_audio(ctx, ctx.dir / "narration.wav", total, mixed)
 
     final = ctx.path("final.mp4")
+    muxed = ctx.dir / "render" / "muxed.mp4" if ctx.is_short else final
     _run(["-i", str(silent), "-i", str(mixed), "-map", "0:v", "-map", "1:a", "-c", "copy",
-          "-t", f"{total:.3f}", "-movflags", "+faststart", str(final)])
+          "-t", f"{total:.3f}", "-movflags", "+faststart", str(muxed)])
+    if ctx.is_short:
+        burn_short_overlay(ctx, muxed, total, w, h, fps, final)
     ctx.log.info("render: final.mp4 %.1f s", total)

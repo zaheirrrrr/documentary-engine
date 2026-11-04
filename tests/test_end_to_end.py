@@ -37,6 +37,18 @@ The dam still stands today, ninety years later. Was it worth the cost? Tell me w
 """
 
 
+SHORT_SCRIPT = """ON-SCREEN: 5 years, 96 men, one dam
+
+In 1931, five thousand men started building the biggest dam on Earth in the Nevada desert.
+
+The summer heat hit 120 degrees, and the river had to be moved through four tunnels first.
+
+By 1936 the dam was done, two years early, and it still holds back Lake Mead today.
+
+The full story is on the channel.
+"""
+
+
 class FakeLLM:
     def __init__(self, settings, usage_hook=None):
         self.calls = []
@@ -45,6 +57,8 @@ class FakeLLM:
         self.calls.append(prompt[:60])
         if "scriptwriter" in prompt:
             return SCRIPT
+        if "You write YouTube Shorts" in prompt:
+            return SHORT_SCRIPT
         return json.dumps(self.complete_json(prompt, **kw))
 
     def complete_json(self, prompt, **kw):
@@ -78,6 +92,9 @@ class FakeLLM:
             return {"beats": out}
         if "candidate archive shots" in prompt:
             return {"best": 1, "usable": [1, 2], "reason": "fits"}
+        if "You package YouTube Shorts" in prompt:
+            return {"titles": ["The Dam Built Two Years Early"], "description": "Five years in the desert.\nFull story: [link to the full video]\n#shorts #history",
+                    "pinned_comment": "Would you have signed up?"}
         if "packaging editor" in prompt:
             return {"titles": ["The Dam That Tamed the Colorado"], "thumbnail_texts": ["5 YEARS IN HELL"],
                     "thumbnail_concepts": [], "description_hook": "How the Hoover Dam was built.",
@@ -171,3 +188,41 @@ def test_full_pipeline(tmp_path, monkeypatch, film):
     assert "Las Vegas Age, 1931" in (proj / "factcheck.md").read_text() or "All script quotes match" in (proj / "factcheck.md").read_text()
 
     assert pipeline.approve(state, pid) == "review_final"
+
+
+def test_short_pipeline(tmp_path, monkeypatch, film):
+    from engine.stages import footage, narration
+    from engine.util import write_json
+
+    monkeypatch.setattr(pipeline, "LLM", FakeLLM)
+    monkeypatch.setattr(narration, "_tts", fake_tts)
+    monkeypatch.setattr(footage, "make_archive", lambda ctx: FakeArchive(film))
+
+    settings = Settings(workspace=tmp_path, pack_name="us-rise-and-fall", llm_provider="api", anthropic_api_key="x",
+                        model_deep="m", model_fast="m", web_search=False, vision_footage_check=False,
+                        elevenlabs_api_key="x", elevenlabs_voice_id="v", elevenlabs_model="m", user_agent="test")
+    state = State(settings.db_path)
+    pid = state.create_project("short-dam", "Short: The Dam Built Early", "Built two years early", "us-rise-and-fall")
+    d = settings.projects_dir / f"{pid:04d}-short-dam"
+    d.mkdir(parents=True)
+    write_json(d / "format.json", {"format": "short", "parent": 99})
+    write_json(d / "topic.json", {"title": "Short", "parent_title": "The Hoover Dam"})
+    write_json(d / "dossier.json", {"summary": "s", "discoveries": [{"fact": "f"}], "quotes": []})
+
+    log = []
+    assert pipeline.run(settings, state, pid, echo=log.append) == "waiting"
+    assert (d / "on_screen.txt").read_text().strip() == "5 years, 96 men, one dam"
+    assert "ON-SCREEN" not in (d / "script.md").read_text()
+    assert "PASS" in (d / "script_check.md").read_text()
+    pipeline.approve(state, pid)
+    assert pipeline.run(settings, state, pid, echo=log.append) == "waiting", "\n".join(log)
+
+    probe = json.loads(subprocess.run(["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json",
+                                       str(d / "final.mp4")], capture_output=True, text=True, check=True).stdout)
+    video = next(s for s in probe["streams"] if s["codec_type"] == "video")
+    assert (video["width"], video["height"]) == (1080, 1920)
+    shots = json.loads((d / "footage.json").read_text())
+    assert all(s["duration"] <= 3.3 for e in shots.values() for s in e["shots"])
+    assert not (d / "thumbnails").exists()
+    assert "Short" in (d / "upload_pack.md").read_text()
+    assert "Short is" in (d / "qa.md").read_text()

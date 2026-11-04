@@ -17,7 +17,7 @@ GENERIC_QUERIES = ["city street", "factory workers", "crowd", "industry", "railr
 
 def run(ctx) -> None:
     script = (ctx.dir / "script.md").read_text(encoding="utf-8")
-    beats = build_beats(script)
+    beats = build_beats(script, max_words=int(ctx.setting("max_beat_words", 24)))
     if not beats:
         raise RuntimeError("Script produced no beats")
 

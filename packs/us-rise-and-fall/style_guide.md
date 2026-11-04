@@ -50,6 +50,60 @@ Chapters 3 to 8 can merge or split to fit the story. Aim for 5 to 8 chapters.
   bullet lists, no "as you can see". Spell numbers the way they are said when
   that helps the narrator ("eighteen ninety-eight" can stay as 1898).
 
+## Hooks (the first 10 seconds)
+
+A hook has one job: make the right viewer decide to keep watching. It needs
+**clarity** (they know what the video is about within two sentences) and
+**curiosity** (a gap they need closed). Score every candidate cold open on
+this checklist and pick the one that passes most, not the one that sounds
+nicest:
+
+- The subject is named in the first sentence.
+- A specific number, name, date or record is in the first sentence.
+- There is a contrast or an open question: what people assume versus what
+  happened, a record against its downfall, the effort against the result.
+- The title's promise is stated within the first 10 seconds.
+- It is true, and the video pays it off.
+- It is the strongest line in the whole script.
+
+The four hook killers: **delay** (warm-up before the subject), **confusion**
+(clever wording the viewer must decode), **irrelevance** (no reason this
+viewer should care) and **no spark** (clear but flat; fix it with a contrast
+or a surprising number).
+
+## Keeping people watching
+
+- **Re-hooks.** At least once a minute (about every 150 spoken words), give
+  the viewer a new reason to stay: a new number, a turn ("but"), a time jump
+  ("three years later"), a reveal, or the answer to a question the viewer is
+  already asking.
+- **Open loops.** Open a question early and close it late, for example: "And
+  one decision made in 1914 would doom the whole thing." Never open a loop the
+  script does not close.
+- **Someone to root against.** Within the first two minutes, name the doubter,
+  rival, rule or number standing in the way. It gives the story stakes.
+- **The middle sag.** Viewers leave at 40 to 60 percent. Put the strongest
+  scene or the best first-hand quote there, and remind the viewer of the
+  promise ("and the fire was still to come").
+- **The callback.** The close returns to the opening image or fact with the
+  opposite result: the record-breaker becomes a housing estate.
+- **End on the last word.** When the story is told, close. One question for
+  the comments, then stop. No outro.
+
+## Writing for the ear
+
+- Read every line as if saying it to a friend across a table. If you would
+  not say it, rewrite it.
+- No em dashes and no semicolons in narration; nobody speaks them. Use a
+  period or "and". (Quotes keep their original punctuation.)
+- At most one one-word sentence in the whole script.
+- No metaphor punchlines ("a goldmine", "the secret sauce"). Say the plain fact.
+- Explain every technical term the first time, in ten words or fewer.
+- Banned words: delve, unlock, unleash, harness, leverage, seamless, robust,
+  cutting-edge, game-changer, revolutionary, transformative, landscape, realm,
+  tapestry, elevate, empower, supercharge, deep dive, next level, dive in,
+  journey (as a metaphor).
+
 ## Things this channel never does
 
 - No invented facts, numbers, dates or quotes. If the dossier does not support
@@ -57,7 +111,11 @@ Chapters 3 to 8 can merge or split to fit the story. Aim for 5 to 8 chapters.
 - No "Imagine..." openings, no "Let's dive in", no "Buckle up", no "But here's
   the thing", no "In today's fast-paced world".
 - No stacks of three short echoing sentences ("Same town. Same people.
-  Different ending.").
+  Different ending."), and no two short sentences in a row that open with the
+  same word. Each line must add something new and move the story forward.
+- No "It's not X, it's Y", "not just X but Y", "Here's the thing", "Spoiler:",
+  "Plot twist:" or "But here's where it gets interesting". Show the twist
+  instead of announcing it.
 - No rhetorical questions as section transitions ("So what happened next?").
   Use a statement that turns the story instead.
 - No moralising about the present day. One judgement at the close is enough.

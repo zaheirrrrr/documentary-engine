@@ -53,6 +53,20 @@ def run(ctx) -> None:
     warnings: list[str] = []
     passes: list[str] = [f"Length {actual / 60:.1f} min ({actual:.1f}s), matches narration"]
 
+    if ctx.is_short:
+        limit = float(ctx.setting("max_seconds", 59))
+        (warnings if actual > limit else passes).append(
+            f"Short is {actual:.1f}s (limit {limit:.0f}s)" + (": trim the script and redo from narration" if actual > limit else ""))
+        video = next(s for s in info["streams"] if s["codec_type"] == "video")
+        (passes if video["height"] > video["width"] else warnings).append(f"Frame {video['width']}x{video['height']}")
+
+    check_file = ctx.dir / "script_check.md"
+    if check_file.exists():
+        last = check_file.read_text(encoding="utf-8").strip().split("## Draft")[-1]
+        headline = next((l for l in last.splitlines() if l.startswith("Score")), "")
+        if headline:
+            (passes if "PASS" in headline else warnings).append(f"Script checker: {headline}")
+
     blacks = black_intervals(final)
     inner = [(a, b) for a, b in blacks if a > 2 and b < actual - 2]
     (warnings if inner else passes).append(
@@ -89,7 +103,7 @@ def run(ctx) -> None:
     desc = (ctx.dir / "description.txt").read_text(encoding="utf-8") if (ctx.dir / "description.txt").exists() else ""
     if len(desc) > 5000:
         warnings.append("Description is over YouTube's 5,000 character limit")
-    if "CHAPTERS" not in desc:
+    if "CHAPTERS" not in desc and not ctx.is_short:
         warnings.append("No chapters in the description (fewer than 3 chapters of 10s+)")
 
     lines = ["# QA report", "", "## Passed"] + [f"- {p}" for p in passes]
@@ -124,7 +138,7 @@ pre{{white-space:pre-wrap;background:var(--card);border:1px solid var(--line);pa
 .muted{{color:var(--muted)}}
 </style></head><body><main>
 <p class=muted>Final review · project {ctx.project_id}</p><h1>{esc(ctx.title)}</h1>
-<video controls src="final.mp4"></video>
+<video controls src="final.mp4" style="{'max-height:80vh;width:auto;display:block;margin:0 auto' if ctx.is_short else ''}"></video>
 <h2>Checks</h2><ul>{items}</ul>
 <h2>Thumbnails</h2><div class=thumbs>{thumbs_html}</div>
 <h2>Title options</h2><ol>{titles}</ol>

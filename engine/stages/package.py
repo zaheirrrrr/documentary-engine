@@ -39,7 +39,34 @@ def chapters(ctx) -> list[tuple[float, str]]:
     return clean if len(clean) >= 3 else []
 
 
+def run_short(ctx) -> None:
+    script = (ctx.dir / "script.md").read_text(encoding="utf-8")
+    topic = read_json(ctx.dir / "topic.json") if (ctx.dir / "topic.json").exists() else {}
+    data = ctx.llm.complete_json(
+        ctx.pack.prompt("package_short", script=script, parent_title=str(topic.get("parent_title", ""))),
+        tier="fast", max_tokens=2000,
+    )
+    write_json(ctx.path("package.json"), data)
+    description = str(data.get("description", "")).strip()
+    lines = [f"# Upload pack (Short): {ctx.title}", "", "## Title options"]
+    lines += [f"{i}. {t}  _({len(t)} chars)_" for i, t in enumerate(data.get("titles", []), start=1)]
+    lines += ["", "## Description (replace [link to the full video] first)", "", "```", description, "```"]
+    lines += ["", "## Pinned comment", "", data.get("pinned_comment", "")]
+    lines += ["", "## Files", "- Video: `final.mp4` (9:16, captions already burned in)", ""]
+    lines += [
+        "## Before you press publish",
+        "- [ ] Watched it on a phone with the sound OFF (does it still make sense?)",
+        "- [ ] Linked the full video in the description and as the Short's related video",
+        "- [ ] Uploaded as Private first and waited for YouTube's copyright check",
+    ]
+    write_text(ctx.path("upload_pack.md"), "\n".join(lines) + "\n")
+    write_text(ctx.path("description.txt"), description + "\n")
+
+
 def run(ctx) -> None:
+    if ctx.is_short:
+        run_short(ctx)
+        return
     script = (ctx.dir / "script.md").read_text(encoding="utf-8")
     dossier = read_json(ctx.dir / "dossier.json")
     data = ctx.llm.complete_json(

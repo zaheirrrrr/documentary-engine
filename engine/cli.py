@@ -166,6 +166,44 @@ def cmd_new(args) -> int:
     return 0
 
 
+def cmd_shorts(args) -> int:
+    """Plan Shorts from a long video's dossier and create one project per Short."""
+    settings, state, pack = _setup(args)
+    parent = state.project(args.project_id)
+    parent_dir = _project_dir(settings, state, parent["id"])
+    if not (parent_dir / "dossier.json").exists():
+        print("That project has no dossier yet. Run it past the research stage first.")
+        return 1
+    from .llm import LLM
+
+    llm = LLM(settings, usage_hook=lambda s, u, unit, d: state.log_usage(parent["id"], s, u, unit, d))
+    count = args.count or int(pack.get("shorts.per_video", 3))
+    dossier = json.loads((parent_dir / "dossier.json").read_text(encoding="utf-8"))
+    slim = {k: v for k, v in dossier.items() if k not in ("source_shelf", "topic")}
+    plan = llm.complete_json(pack.prompt("short_angles", title=parent["title"], count=str(count),
+                                         dossier=json.dumps(slim, indent=1, ensure_ascii=False)),
+                             tier="deep", max_tokens=3000)
+    created = []
+    for s in plan.get("shorts", [])[:count]:
+        title = f"Short: {s.get('title', parent['title'])}"
+        angle = f"{s.get('angle', '')} Hook idea: {s.get('hook', '')}".strip()
+        topic = {"title": title, "angle": angle, "parent_id": parent["id"], "parent_title": parent["title"]}
+        pid = _create_project(settings, state, pack, title, angle, topic)
+        d = _project_dir(settings, state, pid)
+        write_json(d / "format.json", {"format": "short", "parent": parent["id"]})
+        shutil.copy2(parent_dir / "dossier.json", d / "dossier.json")
+        if (parent_dir / "sources.json").exists():
+            shutil.copy2(parent_dir / "sources.json", d / "sources.json")
+        created.append(pid)
+        print(f"Short project {pid}: {title}")
+    if args.run:
+        for pid in created:
+            pipeline.run(settings, state, pid)
+    else:
+        print("Run each with `de run <id>`; each stops at the script review like a long video.")
+    return 0
+
+
 def cmd_run(args) -> int:
     settings, state, _ = _setup(args)
     result = pipeline.run(settings, state, args.project_id, only=args.stage)
@@ -320,6 +358,12 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--era", help="e.g. 1920-1955")
     s.add_argument("--run", action="store_true")
     s.set_defaults(fn=cmd_new)
+
+    s = sub.add_parser("shorts", help="plan vertical Shorts from a long video's research")
+    s.add_argument("project_id", type=int)
+    s.add_argument("--count", type=int)
+    s.add_argument("--run", action="store_true")
+    s.set_defaults(fn=cmd_shorts)
 
     s = sub.add_parser("run", help="run a project forward (resumes where it stopped)")
     s.add_argument("project_id", type=int)

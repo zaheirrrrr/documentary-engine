@@ -175,12 +175,14 @@ def run(ctx) -> None:
                     "-c", "copy", str(narration)], check=True)
 
     total = ffprobe_duration(narration)
+    tail = float(ctx.setting("end_tail_seconds", 1.5))
     ordered = [b["id"] for b in beats]
     timing = []
     for i, bid in enumerate(ordered):
         start = 0.0 if i == 0 else starts[bid]
-        end = starts[ordered[i + 1]] if i + 1 < len(ordered) else total + 1.5
+        end = starts[ordered[i + 1]] if i + 1 < len(ordered) else total + tail
         timing.append({"id": bid, "start": round(start, 3), "end": round(end, 3), "duration": round(end - start, 3)})
     write_json(ctx.path("timing.json"), {"beats": timing, "total": total})
     write_text(ctx.path("captions.srt"), captions(all_words))
+    write_json(ctx.path("words.json"), [{"text": w, "start": round(s, 3), "end": round(e, 3)} for w, s, e in all_words])
     ctx.log.info("narration: %.1f s across %d chapters", total, len(order))

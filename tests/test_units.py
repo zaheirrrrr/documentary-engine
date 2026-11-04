@@ -57,3 +57,30 @@ def test_extract_json_variants():
     assert extract_json('<json>{"a": 1}</json>') == {"a": 1}
     assert extract_json('Here:\n```json\n{"a": [1,2]}\n```') == {"a": [1, 2]}
     assert extract_json('prose {"b": 2} more') == {"b": 2}
+
+
+def test_scriptcheck_flags_ai_patterns():
+    from engine.scriptcheck import Profile, check
+
+    bad = ("Imagine this. It's not a dam, it's a monument. We need to delve into it; really.\n\n"
+           "Same town. Same people. Same ending.\n\nWild. Simple.")
+    r = check(bad, Profile(1, 500))
+    reasons = " ".join(r.hard)
+    for expected in ("stage direction", "it's Y", "banned word", "semicolon", "one-word", "parallel repetition"):
+        assert expected in reasons, expected
+    assert not r.passed
+
+    good = ("In 1931, five thousand men started building the largest dam on Earth.\n\n"
+            "The river had to be moved first, so they drilled four tunnels through the canyon walls.\n\n"
+            "Three years later the concrete was rising, and the town of Boulder City had grown around it.\n\n"
+            "Tell me in the comments if you would have taken the job.")
+    assert check(good, Profile(1, 500)).passed
+
+
+def test_karaoke_states():
+    from engine.karaoke import caption_states
+
+    states = caption_states([("Hello,", 0.5, 0.8), ("world.", 0.9, 1.3)], 2.0)
+    assert states[0] == (0.0, 0.5, "")
+    assert states[1][2] == "HELLO" and states[2][2] == "WORLD"
+    assert abs(states[-1][1] - 2.0) < 1e-9

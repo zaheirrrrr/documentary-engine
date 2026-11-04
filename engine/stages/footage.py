@@ -142,7 +142,8 @@ def run(ctx) -> None:
     beats = read_json(ctx.dir / "shotlist.json")["beats"]
     timing = {t["id"]: t for t in read_json(ctx.dir / "timing.json")["beats"]}
     cfg = ctx.pack.get("footage", {}) or {}
-    max_clip, min_clip = float(cfg.get("max_clip_seconds", 9)), float(cfg.get("min_clip_seconds", 3))
+    max_clip = float(ctx.setting("max_clip_seconds", cfg.get("max_clip_seconds", 9)))
+    min_clip = float(ctx.setting("min_clip_seconds", cfg.get("min_clip_seconds", 3)))
     want = int(cfg.get("candidates_per_beat", 4))
 
     archive = make_archive(ctx)
