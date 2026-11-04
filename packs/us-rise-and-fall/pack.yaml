@@ -1,0 +1,77 @@
+# Niche pack: US Rise & Fall
+# Everything the engine knows about this channel lives in this folder.
+# To launch a new niche, copy this folder, rename it, and edit these files.
+
+pack: us-rise-and-fall
+channel_name: "Built & Broken"   # working name; change any time
+language: en-US
+
+video:
+  target_words: 2000          # ~13-14 minutes at the pace below
+  min_words: 1700
+  max_words: 2600
+  words_per_minute: 150
+  resolution: [1920, 1080]
+  fps: 30
+  chapters_min: 5
+  chapters_max: 8
+
+topics:
+  # The channel's single promise. Every topic must fit it.
+  promise: "The rise and fall of America's great builds and businesses"
+  categories:
+    business: "American companies, industries, brands and fortunes that rose and collapsed"
+    megaproject: "American engineering megaprojects, infrastructure and boomtowns"
+  mix: {business: 0.6, megaproject: 0.4}
+  era: {start: 1850, end: 1985}   # footage coverage is strongest 1930-1980
+  must_have:
+    - "A clear rise, peak and fall (or near-fall) arc"
+    - "At least one named person driving the story"
+    - "Hard numbers: money, size, people, dates"
+    - "Something that remains, or vanished, today"
+  avoid:
+    - "Stories set mainly after 1990 (no public-domain footage exists)"
+    - "War-centred or atrocity-centred stories (limited-ads risk)"
+    - "Living private individuals as the focus"
+    - "Topics already covered by this channel"
+
+research:
+  wikipedia: true
+  chronicling_america: true      # Library of Congress historic newspapers (pre-1964)
+  web_search: true               # Claude web search during research
+  max_newspaper_pages: 12
+
+footage:
+  # archive.org collections searched for footage. Items are accepted when
+  # their licence is public domain / CC0 / CC-BY(-SA), or when the collection
+  # is marked trusted (US federal works, 17 U.S.C. 105). NC and ND licences
+  # are always rejected.
+  collections:
+    - {id: prelinger, trusted: false, note: "Prelinger Archives: industrial, corporate, educational films"}
+    - {id: FedFlix, trusted: true, note: "US federal government films (same source as destockd.com)"}
+  min_clip_seconds: 3
+  max_clip_seconds: 9
+  skip_head_fraction: 0.08       # avoid title cards at the start of a film
+  skip_tail_fraction: 0.08       # avoid end credits
+  candidates_per_beat: 4
+  grade: "vintage"               # vintage | neutral
+  strip_source_audio: true       # always true: avoids audio Content ID claims
+
+audio:
+  music_dir: music               # packs/us-rise-and-fall/music/*.mp3 (royalty-free)
+  music_volume_db: -24
+  target_lufs: -14
+
+voice:
+  stability: 0.45
+  similarity_boost: 0.8
+  style: 0.15
+  speed: 1.0
+
+package:
+  footer: "Narrated with a synthetic voice from a script researched, fact-checked and reviewed by the channel."
+
+thumbnail:
+  text_max_words: 4
+  font: "DejaVuSans-Bold.ttf"
+  colors: {text: "#FFFFFF", stroke: "#000000", accent: "#E8B33A"}
