@@ -18,6 +18,7 @@ import re
 from ..dossier import render
 from ..scriptcheck import check, profile_for
 from ..util import read_json, write_text
+from .outline import packaging_brief
 from .research import dossier_for_prompt
 
 MAX_PASSES = 3
@@ -39,6 +40,7 @@ def _long_prompt(ctx, revision_notes: str) -> str:
         "script",
         dossier=dossier_for_prompt(ctx),
         outline=json.dumps(outline_for_prompt, indent=1, ensure_ascii=False),
+        packaging=packaging_brief(ctx),
         target_words=str(ctx.setting("target_words", 2000)),
         min_words=str(ctx.setting("min_words", 1700)),
         max_words=str(ctx.setting("max_words", 2600)),

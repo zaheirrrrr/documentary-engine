@@ -2,7 +2,7 @@
 
 Order of work for one video project:
 
-  research -> outline -> script -> factcheck -> [GATE review_script]
+  research -> concept -> outline -> script -> factcheck -> [GATE review_script]
   -> shotlist -> narration -> footage -> render -> package -> thumbnail
   -> qa -> [GATE review_final]
 
@@ -31,7 +31,8 @@ GATE = "gate"
 # (name, module or GATE, human description)
 STAGES: list[tuple[str, str, str]] = [
     ("research", "engine.stages.research", "Build the research dossier from sources"),
-    ("outline", "engine.stages.outline", "Hooks and chapter outline"),
+    ("concept", "engine.stages.concept", "Title and thumbnail concepts first (from outlier research)"),
+    ("outline", "engine.stages.outline", "Hooks and chapter outline that pay off the title"),
     ("script", "engine.stages.script", "Write the narration script"),
     ("factcheck", "engine.stages.factcheck", "Check every claim against the dossier"),
     ("review_script", GATE, "YOU: read script.md, edit if needed, then approve"),
@@ -47,7 +48,7 @@ STAGES: list[tuple[str, str, str]] = [
 
 STAGE_NAMES = [s[0] for s in STAGES]
 # Shorts reuse the parent video's research, and YouTube picks Shorts covers from frames.
-SKIP_FOR_SHORTS = {"research", "outline", "thumbnail"}
+SKIP_FOR_SHORTS = {"research", "concept", "outline", "thumbnail"}
 STAGE_ATTEMPTS = 2  # automatic whole-stage retries on top of per-call retries
 
 

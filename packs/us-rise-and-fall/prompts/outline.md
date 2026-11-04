@@ -12,6 +12,10 @@ You are the story editor for a documentary channel. Plan the video.
 {{dossier}}
 </dossier>
 
+<packaging>
+{{packaging}}
+</packaging>
+
 Target length: about {{target_words}} words of narration, in {{chapters_min}} to {{chapters_max}} chapters.
 
 Step 1. Write 5 different cold opens (each 120 to 180 words) following the

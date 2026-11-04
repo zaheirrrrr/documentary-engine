@@ -92,6 +92,23 @@ class FakeLLM:
             return {"beats": out}
         if "candidate archive shots" in prompt:
             return {"best": 1, "usable": [1, 2], "reason": "fits"}
+        if "You are the packaging lead" in prompt:
+            return {"titles": [
+                {"title": "The $49 Million Dam That Tamed a River", "formula_id": "price_tag", "promise": "How it was built", "curiosity_gap": "how", "payoff": "build"},
+                {"title": "Why 5,000 Men Risked Everything in the Desert", "formula_id": "why", "promise": "The human cost", "curiosity_gap": "why", "payoff": "build"},
+                {"title": "SHOCKING Dam Secrets!!", "formula_id": "original", "promise": "x", "curiosity_gap": "x", "payoff": "x"},
+            ]}
+        if "You are judging YouTube titles" in prompt:
+            return {"scores": [{"i": 1, "overall": 7.5, "truth": 9, "curiosity": 7}, {"i": 2, "overall": 8.8, "truth": 8, "curiosity": 9}]}
+        if "You are designing thumbnails for a documentary" in prompt:
+            return {"concepts": [
+                {"for_title": 1, "layout": "versus", "text": "", "panels": [{"query": "river", "look_for": "a wild river", "label": "1931"}, {"query": "dam", "look_for": "a finished dam", "label": "1936"}], "device": "none"},
+                {"for_title": 2, "layout": "subject", "text": "5,000 MEN", "panels": [{"query": "workers", "look_for": "crowd of workers"}], "device": "circle"},
+                {"for_title": 1, "layout": "number", "text": "$49M", "subtext": "about $1 billion today", "panels": [{"query": "concrete", "look_for": "concrete pour"}]},
+                {"for_title": 2, "layout": "split", "text": "BUILT IN THE DESERT", "panels": [{"query": "desert", "look_for": "empty desert"}, {"query": "dam", "look_for": "dam"}]},
+            ]}
+        if "choosing thumbnails for YouTube's Test & Compare" in prompt:
+            return {"ranking": [{"n": 2, "score": 9}, {"n": 1, "score": 8}, {"n": 4, "score": 7}, {"n": 3, "score": 6}], "pick": [2, 1, 4]}
         if "You package YouTube Shorts" in prompt:
             return {"titles": ["The Dam Built Two Years Early"], "description": "Five years in the desert.\nFull story: [link to the full video]\n#shorts #history",
                     "pinned_comment": "Would you have signed up?"}
@@ -181,7 +198,13 @@ def test_full_pipeline(tmp_path, monkeypatch, film):
     video = next(s for s in probe["streams"] if s["codec_type"] == "video")
     assert (video["width"], video["height"]) == (1920, 1080)
     assert (proj / "captions.srt").read_text().startswith("1\n")
-    assert len(list((proj / "thumbnails").glob("thumb*.jpg"))) >= 1
+    thumbs = sorted((proj / "thumbnails").glob("thumb*.jpg"))
+    assert [t.name for t in thumbs] == ["thumb1.jpg", "thumb2.jpg", "thumb3.jpg"]
+    assert "Pair with title" in (proj / "thumbnails" / "thumbnails.md").read_text()
+    packaging = json.loads((proj / "packaging.json").read_text())
+    assert packaging["chosen_title"] == "Why 5,000 Men Risked Everything in the Desert"
+    assert packaging["rejected"][0]["title"] == "SHOCKING Dam Secrets!!"
+    assert "Why 5,000 Men" in (proj / "upload_pack.md").read_text().split("## Title options")[1].splitlines()[1]
     pack_md = (proj / "upload_pack.md").read_text()
     assert "ARCHIVAL FOOTAGE" in pack_md and "CHAPTERS" in pack_md
     assert (proj / "review.html").exists()

@@ -85,6 +85,43 @@ voice:
   style: 0.15
   speed: 1.0
 
+packaging:
+  # de trends studies what makes people click, across niches, and turns it
+  # into title formulas and thumbnail patterns for this channel.
+  # Handles are editable; de trends reports any it cannot find.
+  reference_channels:        # cross-niche packaging leaders
+    - "@MrBeast"
+    - "@ryan"                 # Ryan Trahan
+    - "@MarkRober"
+    - "@veritasium"
+    - "@kurzgesagt"
+    - "@johnnyharris"
+    - "@LEMMiNO"
+    - "@OverSimplified"
+    - "@TomScottGo"
+  niche_channels:            # our own space: business, engineering, history, decline
+    - "@MagnatesMedia"
+    - "@HowMoneyWorks"
+    - "@companyman"
+    - "@BusinessCasual"
+    - "@ColdFusion"
+    - "@ModernMBA"
+    - "@LogicallyAnswered"
+    - "@Wendoverproductions"
+    - "@RealEngineering"
+    - "@PracticalEngineeringChannel"
+    - "@BrightSunFilms"
+    - "@Defunctland"
+    - "@SimpleHistory"
+    - "@WeirdHistory"
+  videos_per_channel: 60
+  min_outlier: 2.0           # a video must do at least 2x its channel's median
+  max_thumbnails_studied: 48
+  refresh_days: 14           # de trends warns when the library is older than this
+  titles_generated: 24
+  titles_kept: 6
+  thumbnail_variants: 3      # YouTube Test & Compare allows up to 3
+
 package:
   footer: "Narrated with a synthetic voice from a script researched, fact-checked and reviewed by the channel."
 

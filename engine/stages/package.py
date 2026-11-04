@@ -72,6 +72,14 @@ def run(ctx) -> None:
     data = ctx.llm.complete_json(
         ctx.pack.prompt("package", script=script, summary=dossier.get("summary", "")), tier="fast", max_tokens=4000
     )
+    packaging_path = ctx.dir / "packaging.json"
+    if packaging_path.exists():
+        # The concept stage's ranked titles win; the chosen one leads.
+        p = read_json(packaging_path)
+        ranked = [p["chosen_title"]] + [t["title"] for t in p.get("titles", []) if t["title"] != p["chosen_title"]]
+        data["titles"] = ranked + [t for t in data.get("titles", []) if t not in ranked][:2]
+        texts = [c.get("text", "") for c in p.get("thumbnail_concepts", []) if c.get("text")]
+        data["thumbnail_texts"] = texts + [t for t in data.get("thumbnail_texts", []) if t not in texts]
     write_json(ctx.path("package.json"), data)
 
     credits = read_json(ctx.dir / "credits.json") if (ctx.dir / "credits.json").exists() else {}

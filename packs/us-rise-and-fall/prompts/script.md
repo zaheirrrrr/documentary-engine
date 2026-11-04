@@ -16,6 +16,10 @@ You are the scriptwriter for a documentary channel. Write the full narration.
 {{outline}}
 </outline>
 
+<packaging>
+{{packaging}}
+</packaging>
+
 Write the complete script following the outline and the style guide.
 Length: {{min_words}} to {{max_words}} words; aim for {{target_words}}.
 

@@ -7,8 +7,11 @@ objective signals the model cannot invent:
 - familiarity: last-12-months Wikipedia page views of the main subject
 - footage: how many public-domain films match its footage keywords
 
-Final score (0-10) = 30% story arc + 15% novelty + 15% source depth
-                   + 20% familiarity (page views) + 20% footage availability
+- trend: the best of (fit with themes over-performing right now, from
+  `de trends`), a Wikipedia interest spike, or a round anniversary coming up
+
+Final score (0-10) = 25% story arc + 10% novelty + 15% source depth
+                   + 15% familiarity + 20% footage + 15% trend
 """
 
 from __future__ import annotations
@@ -25,7 +28,7 @@ from .sources.archive_org import Archive
 from .state import State
 from .util import http_session, log
 
-WEIGHTS = {"arc_strength": 0.30, "novelty": 0.15, "source_depth": 0.15, "familiarity": 0.20, "footage": 0.20}
+WEIGHTS = {"arc_strength": 0.25, "novelty": 0.10, "source_depth": 0.15, "familiarity": 0.15, "footage": 0.20, "trend": 0.15}
 
 
 def footage_score(hits: int) -> float:
@@ -55,8 +58,14 @@ def discover(settings: Settings, state: State, pack: Pack, count: int = 10, cate
     llm = LLM(settings, usage_hook=lambda s, u, unit, d: state.log_usage(None, s, u, unit, d))
     rules = {k: pack.get(f"topics.{k}") for k in ("promise", "categories", "era", "must_have", "avoid")}
     existing = state.all_titles()
+    from .trends import load_library
+
+    themes = load_library(settings).get("topic_themes", [])
+    theme_text = "\n".join(f"- {t.get('theme')}: {t.get('why_now', '')} Evidence: " + "; ".join(t.get("evidence", [])[:3])
+                           for t in themes) or "(No outlier research yet. Run `de trends` to fill this.)"
     prompt = pack.prompt(
         "discover",
+        trend_themes=theme_text,
         topic_rules=yaml.safe_dump(rules, sort_keys=False, allow_unicode=True),
         existing_titles="\n".join(f"- {t}" for t in existing) or "(none yet)",
         count=str(count),
@@ -77,11 +86,14 @@ def discover(settings: Settings, state: State, pack: Pack, count: int = 10, cate
             continue
         scores = {k: float(v) for k, v in (t.get("scores") or {}).items() if isinstance(v, (int, float))}
 
-        views = 0
+        views, spike = 0, 1.0
         try:
-            views = wikipedia.monthly_views(session, t.get("wikipedia_title", ""))
+            views, spike = wikipedia.views_with_trend(session, t.get("wikipedia_title", ""))
         except Exception as exc:  # noqa: BLE001
             log.warning("page views failed for %s: %s", title, exc)
+        anniv, anniv_note = wikipedia.anniversary_score(str(t.get("key_date", "")))
+        spike_score = max(0.0, min(10.0, (spike - 1.0) * 10)) if spike > 1.2 else 0.0
+        scores["trend"] = max(scores.pop("trend_fit", 0.0) if t.get("trend_theme") else 0.0, spike_score, anniv)
         scores["familiarity_llm"] = scores.pop("familiarity", 5.0)
         scores["familiarity"] = wikipedia.familiarity_score(views) if views else scores["familiarity_llm"]
 
@@ -94,7 +106,8 @@ def discover(settings: Settings, state: State, pack: Pack, count: int = 10, cate
         scores["footage"] = footage_score(hits)
 
         final = round(sum(scores.get(k, 5.0) * w for k, w in WEIGHTS.items()), 2)
-        details = dict(t, yearly_views=views, footage_hits=hits, scores=scores)
+        details = dict(t, yearly_views=views, interest_spike=spike, anniversary=anniv_note, footage_hits=hits, scores=scores)
         ids.append(state.add_topic(title, t.get("angle", ""), t.get("category", ""), final, details))
-        echo(f"  [{final:4.1f}] {title}  (views/yr {views:,}, films {hits})")
+        extra = f", {anniv_note}" if anniv_note else (f", interest x{spike}" if spike > 1.2 else "")
+        echo(f"  [{final:4.1f}] {title}  (views/yr {views:,}, films {hits}{extra})")
     return ids

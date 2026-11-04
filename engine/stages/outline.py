@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from ..dossier import render
-from ..util import write_json
+from ..util import read_json, write_json
 from .research import dossier_for_prompt
 
 
@@ -14,6 +14,7 @@ def run(ctx) -> None:
     prompt = ctx.pack.prompt(
         "outline",
         dossier=dossier_for_prompt(ctx),
+        packaging=packaging_brief(ctx),
         target_words=str(v.get("target_words", 2000)),
         chapters_min=str(v.get("chapters_min", 5)),
         chapters_max=str(v.get("chapters_max", 8)),
@@ -35,3 +36,14 @@ def run(ctx) -> None:
     lines += ["# Chapters", "", "```json", json.dumps(outline["chapters"], indent=2, ensure_ascii=False), "```"]
     ctx.path("outline.md").write_text("\n".join(lines), encoding="utf-8")
     render(ctx.dir, ctx.title, ctx.angle)
+
+
+def packaging_brief(ctx) -> str:
+    """The title promise the video must deliver (from the concept stage)."""
+    path = ctx.dir / "packaging.json"
+    if not path.exists():
+        return "(No title chosen yet.)"
+    p = read_json(path)
+    return (f"Title: {p.get('chosen_title', '')}\nPromise: {p.get('promise', '')}\n"
+            "The cold open must make this promise clear within the first 10 seconds, and the video must pay it off. "
+            "The title has already done the teasing; do not repeat it word for word.")

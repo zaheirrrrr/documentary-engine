@@ -51,6 +51,7 @@ class Settings:
     elevenlabs_voice_id: str
     elevenlabs_model: str
     user_agent: str
+    youtube_api_key: str = ""
 
     @classmethod
     def load(cls) -> "Settings":
@@ -69,7 +70,12 @@ class Settings:
             elevenlabs_voice_id=_env("ELEVENLABS_VOICE_ID"),
             elevenlabs_model=_env("ELEVENLABS_MODEL", "eleven_multilingual_v2"),
             user_agent=_env("DE_USER_AGENT", "documentary-engine/0.1"),
+            youtube_api_key=_env("YOUTUBE_API_KEY"),
         )
+
+    @property
+    def research_dir(self) -> Path:
+        return self.workspace / "research"
 
     @property
     def db_path(self) -> Path:

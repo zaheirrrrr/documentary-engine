@@ -8,6 +8,12 @@ You are the topic researcher for a YouTube documentary channel.
 {{topic_rules}}
 </topic_rules>
 
+<over_performing_now>
+Topic themes currently beating their channels' normal views in and around our
+niche (from outlier research). Lean toward these where a strong true story fits.
+{{trend_themes}}
+</over_performing_now>
+
 <already_used_or_proposed>
 {{existing_titles}}
 </already_used_or_proposed>
@@ -30,6 +36,8 @@ For each topic return:
 - "era": "start-end" years of the main story
 - "arc": {"rise": "...", "peak": "...", "fall": "..."} one line each
 - "competition": what existing YouTube coverage you found, and the gap this angle fills
-- "scores": integers 1 to 10 for "arc_strength", "familiarity", "novelty", "source_depth"
+- "key_date": the date of the story's defining event as YYYY-MM-DD (or YYYY), used to spot anniversaries
+- "trend_theme": the over-performing theme above it fits, or ""
+- "scores": integers 1 to 10 for "arc_strength", "familiarity", "novelty", "source_depth", "trend_fit" (how strongly it rides a theme above)
 
 Return only JSON inside <json></json> tags: {"topics": [ ... ]}

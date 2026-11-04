@@ -14,18 +14,19 @@ rise and fall of America's great builds and businesses.
 | # | Stage | What happens | Output |
 |---|---|---|---|
 | 1 | research | Wikipedia + Library of Congress newspapers + Claude web search. Every quote is checked word for word against the fetched source. | `dossier.json`, `dossier.md`, `sources.json` |
-| 2 | outline | 5 cold-open hooks, scored; best one chosen. Chapter plan with turning lines. | `outline.json`, `outline.md` |
-| 3 | script | Full narration in the pack's style. Scored by the script checker (hooks, re-hooks, anti-AI writing rules, banned patterns) and rewritten until it scores 90+ with no hard fails. | `script.md`, `script_check.md` |
-| 4 | factcheck | Every claim checked against the dossier; exact fixes applied; leftovers listed. | `factcheck.md` |
-| 5 | **review_script** | **You** read and edit `script.md`, then `de approve`. | |
-| 6 | shotlist | Script split into 6–10 s beats in code (no words lost); Claude picks a visual per beat. | `shotlist.json` |
-| 7 | narration | ElevenLabs, one chapter per call, with character timestamps. | `narration.wav`, `timing.json`, `captions.srt` |
-| 8 | footage | archive.org search (licence-filtered), 3-frame contact sheets, Claude vision picks the fitting clip, clip cut with no audio. | `footage/clips/`, `footage.json`, `credits.json` |
-| 9 | render | Clips framed over blurred fill, vintage grade, grain, quote and number cards, chapter titles, music ducking, −14 LUFS. | `final.mp4` |
-| 10 | package | Titles, thumbnail text, description with chapters + sources + footage credits, tags, pinned comment. | `upload_pack.md`, `description.txt` |
-| 11 | thumbnail | Three drafts from the sharpest, highest-contrast frames. | `thumbnails/` |
-| 12 | qa | Length, streams, black frames, loudness, fallbacks, open fact-check items. | `qa.md`, `review.html` |
-| 13 | **review_final** | **You** watch `review.html`, then upload by hand. | |
+| 2 | concept | **Title and thumbnail first.** ~24 titles adapted from proven outlier formulas, filtered by the title checker, judged like a viewer scrolling the feed, ranked; thumbnail concepts designed for the top titles. | `packaging.json`, `packaging.md` |
+| 3 | outline | 5 cold-open hooks, scored against the hook checklist; chapter plan that pays off the chosen title's promise. | `outline.json`, `outline.md` |
+| 4 | script | Full narration in the pack's style. Scored by the script checker (hooks, re-hooks, anti-AI writing rules, banned patterns) and rewritten until it scores 90+ with no hard fails. | `script.md`, `script_check.md` |
+| 5 | factcheck | Every claim checked against the dossier; exact fixes applied; leftovers listed. | `factcheck.md` |
+| 6 | **review_script** | **You** read and edit `script.md`, then `de approve`. | |
+| 7 | shotlist | Script split into 6–10 s beats in code (no words lost); Claude picks a visual per beat. | `shotlist.json` |
+| 8 | narration | ElevenLabs, one chapter per call, with character timestamps. | `narration.wav`, `timing.json`, `captions.srt` |
+| 9 | footage | archive.org search (licence-filtered), 3-frame contact sheets, Claude vision picks the fitting clip, clip cut with no audio. | `footage/clips/`, `footage.json`, `credits.json` |
+| 10 | render | Clips framed over blurred fill, vintage grade, grain, quote and number cards, chapter titles, music ducking, −14 LUFS. | `final.mp4` |
+| 11 | package | Titles, thumbnail text, description with chapters + sources + footage credits, tags, pinned comment. | `upload_pack.md`, `description.txt` |
+| 12 | thumbnail | Each concept gets frames found on archive.org for its brief, is drawn in its layout (split, versus, subject, number), checked at phone size, and judged by Claude; the best 3 different ones are ready for Test & Compare. | `thumbnails/thumb1-3.jpg`, `thumbnails.md` |
+| 13 | qa | Length, streams, black frames, loudness, fallbacks, open fact-check items. | `qa.md`, `review.html` |
+| 14 | **review_final** | **You** watch `review.html`, then upload by hand. | |
 
 Every stage is checkpointed in SQLite. A crash or a closed laptop costs at most
 the stage that was running: `de run <id>` resumes there. Network calls retry
@@ -57,10 +58,11 @@ Optional: put royalty-free music in `packs/<pack>/music/` with a
 ## Daily use
 
 ```bash
+de trends                              # refresh the packaging library (every ~2 weeks)
 de discover --count 10                 # propose + score topics
 de topics --detail                     # read them
-de pick 4 --run                        # research → script, stops for your review
-# edit workspace/projects/0001-.../script.md if you want
+de pick 4 --run                        # research → title → script, stops for your review
+# read packaging.md (title ranking) and script.md; edit either if you want
 de approve 1 --run                     # narration → footage → render → QA
 de review 1 --open                     # watch the video, read the upload pack
 de approve 1                           # final sign-off
@@ -97,13 +99,48 @@ parallel repetition stacks. Soft flags: length, a weak first sentence, long
 sentences, rhetorical questions in the body, gaps with no re-hook, no ask at
 the end. Quote blocks are excluded (historic text keeps its punctuation).
 
+## Packaging research: what makes people click
+
+```bash
+de trends        # every ~2 weeks
+```
+
+1. Pulls ~60 recent videos from each channel in `packaging.reference_channels`
+   (leaders across niches: MrBeast, Veritasium, Johnny Harris...) and
+   `packaging.niche_channels` (business, engineering, history channels).
+2. Keeps the **outliers**: videos that beat their own channel's median views
+   by 2x or more. That isolates packaging that worked, not channel size.
+3. **Titles:** Claude reverse-engineers reusable formulas ("$[small] vs
+   $[huge] [thing]", "Why [familiar thing] Disappeared") and adapts each to our
+   stories. Each formula's strength is then measured in code from the real
+   outlier multiples of the titles it cites, so nothing is taken on faith.
+4. **Thumbnails:** the top outlier thumbnails are tiled into numbered grids
+   and tagged by Claude vision (layout, words, devices, emotion, contrast).
+   Tags are counted, weighted by outlier multiple, and turned into thumbnail
+   patterns we can build from period footage.
+5. **Topics:** niche outliers are grouped into themes that are over-performing
+   now, with topic ideas; `de discover` leans on them.
+
+Output: `workspace/research/library.md` (read it, it's a playbook) and
+`library.json`, which the concept and thumbnail stages use on every video.
+
+Data: a free `YOUTUBE_API_KEY` (read-only public data) or, with no key,
+`yt-dlp`. Edit the channel lists in `pack.yaml`; any handle that can't be
+found is listed at the top of library.md.
+
+Check your own title ideas any time: `de titles "Title one" "Title two"`.
+
 ## Topic scoring
 
 `de discover` combines Claude's judgement with two signals it cannot invent:
 - **Familiarity**: last 12 months of Wikipedia page views for the subject.
 - **Footage**: how many licence-approved films match the topic's footage keywords.
 
-Score = 30% story arc + 15% novelty + 15% source depth + 20% familiarity + 20% footage.
+- **Trend**: the best of three: fit with a theme over-performing right now
+  (from `de trends`), a Wikipedia interest spike in the last two months, or a
+  round anniversary (25th, 50th, 100th...) in the next six months.
+
+Score = 25% story arc + 10% novelty + 15% source depth + 15% familiarity + 20% footage + 15% trend.
 
 ## Footage and copyright
 

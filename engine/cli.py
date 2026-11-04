@@ -97,10 +97,43 @@ def cmd_doctor(args) -> int:
     return 0 if ok else 1
 
 
+def cmd_trends(args) -> int:
+    settings, state, pack = _setup(args)
+    from . import trends
+
+    print("Researching what makes people click (outlier titles, thumbnails, topics)...")
+    path = trends.run(settings, state, pack)
+    print(f"\nPackaging library saved: {path}")
+    print("New videos now build titles and thumbnails from it; `de discover` uses its topic themes.")
+    return 0
+
+
+def cmd_titles(args) -> int:
+    """Check your own title ideas against the title checker."""
+    from .titles import check_title
+
+    for t in args.titles:
+        r = check_title(t)
+        print(f"{r.score:>3}  {'OK ' if r.ok else 'NO '} {t}")
+        for h in r.hard:
+            print(f"       HARD: {h}")
+        for s_ in r.soft:
+            print(f"       soft: {s_}")
+    return 0
+
+
 def cmd_discover(args) -> int:
     settings, state, pack = _setup(args)
     from .discover import discover
 
+    from .trends import library_age_days
+
+    age = library_age_days(settings)
+    limit = int(pack.get("packaging.refresh_days", 14))
+    if age is None:
+        print("Tip: run `de trends` first so topics and titles use real outlier data.\n")
+    elif age > limit:
+        print(f"Tip: the packaging library is {age} days old; refresh it with `de trends`.\n")
     ids = discover(settings, state, pack, args.count, args.category, args.focus or "")
     print(f"\n{len(ids)} topics added. See them with `de topics`; start one with `de pick <id> --run`.")
     return 0
@@ -330,6 +363,12 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("doctor", help="check keys, tools and sources").set_defaults(fn=cmd_doctor)
+
+    sub.add_parser("trends", help="research outlier titles, thumbnails and topics across niches").set_defaults(fn=cmd_trends)
+
+    s = sub.add_parser("titles", help="score title ideas with the title checker")
+    s.add_argument("titles", nargs="+")
+    s.set_defaults(fn=cmd_titles)
 
     s = sub.add_parser("discover", help="propose and score new topics")
     s.add_argument("--count", type=int, default=10)
