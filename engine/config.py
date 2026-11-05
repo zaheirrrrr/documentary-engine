@@ -55,7 +55,7 @@ class Settings:
     tts_provider: str = "elevenlabs"  # "elevenlabs" or "voicestudio"
     voicestudio_url: str = "http://127.0.0.1:3900"
     voicestudio_voice: str = "default"
-    voicestudio_model: str = "omnivoice"
+    voicestudio_model: str = "mlx-audio"
 
     @classmethod
     def load(cls) -> "Settings":
@@ -78,7 +78,7 @@ class Settings:
             tts_provider=_env("TTS_PROVIDER", "elevenlabs").lower(),
             voicestudio_url=_env("VOICESTUDIO_URL", "http://127.0.0.1:3900").rstrip("/"),
             voicestudio_voice=_env("VOICESTUDIO_VOICE", "default"),
-            voicestudio_model=_env("VOICESTUDIO_MODEL", "omnivoice"),
+            voicestudio_model=_env("VOICESTUDIO_MODEL", "mlx-audio"),
         )
 
     @property

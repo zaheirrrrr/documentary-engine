@@ -113,8 +113,12 @@ def _voicestudio_post(url: str, **kwargs) -> requests.Response:
         r = requests.post(url, timeout=900, **kwargs)
     except requests.ConnectionError as exc:
         raise PermanentError(f"VoiceStudio is not running at {url.split('/v1')[0]}: open the app first") from exc
-    if r.status_code in (400, 404, 409, 422):
-        raise PermanentError(f"VoiceStudio rejected the request ({r.status_code}): {r.text[:300]}")
+    if r.status_code in (400, 401, 403, 404, 409, 422):
+        try:
+            detail = r.json()["error"]["message"]
+        except (ValueError, KeyError, TypeError):
+            detail = r.text[:300]
+        raise PermanentError(f"VoiceStudio rejected the request ({r.status_code}): {detail}")
     r.raise_for_status()
     return r
 
