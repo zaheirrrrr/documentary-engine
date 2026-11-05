@@ -20,7 +20,7 @@ rise and fall of America's great builds and businesses.
 | 5 | factcheck | Every claim checked against the dossier; exact fixes applied; leftovers listed. | `factcheck.md` |
 | 6 | **review_script** | **You** read and edit `script.md`, then `de approve`. | |
 | 7 | shotlist | Script split into 6–10 s beats in code (no words lost); Claude picks a visual per beat. | `shotlist.json` |
-| 8 | narration | ElevenLabs, one chapter per call, with character timestamps. | `narration.wav`, `timing.json`, `captions.srt` |
+| 8 | narration | VoiceStudio (local) or ElevenLabs, one chapter per call, with character timestamps. | `narration.wav`, `timing.json`, `captions.srt` |
 | 9 | footage | archive.org search (licence-filtered), 3-frame contact sheets, Claude vision picks the fitting clip, clip cut with no audio. | `footage/clips/`, `footage.json`, `credits.json` |
 | 10 | render | Clips framed over blurred fill, vintage grade, grain, quote and number cards, chapter titles, music ducking, −14 LUFS. | `final.mp4` |
 | 11 | package | Titles, thumbnail text, description with chapters + sources + footage credits, tags, pinned comment. | `upload_pack.md`, `description.txt` |
@@ -49,8 +49,13 @@ Keys:
 - **Claude**: `ANTHROPIC_API_KEY` from console.anthropic.com (`LLM_PROVIDER=api`),
   or `LLM_PROVIDER=claude-code` to run through the `claude` CLI on a Claude
   Code plan.
-- **ElevenLabs**: `ELEVENLABS_API_KEY` and the `ELEVENLABS_VOICE_ID` of the
-  narrator voice.
+- **Narration**, one of:
+  - **VoiceStudio** (`TTS_PROVIDER=voicestudio`, the default): free and local.
+    Install the [VoiceStudio](https://github.com/debpalash/VoiceStudio) app,
+    keep it open, and set `VOICESTUDIO_VOICE` to a voice profile made in it.
+    Word timings come from VoiceStudio's own transcription of each chapter.
+  - **ElevenLabs** (`TTS_PROVIDER=elevenlabs`): `ELEVENLABS_API_KEY` and the
+    `ELEVENLABS_VOICE_ID` of the narrator voice.
 
 Optional: put royalty-free music in `packs/<pack>/music/` with a
 `credits.txt` (one credit line per track). Videos render without music too.

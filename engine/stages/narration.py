@@ -1,4 +1,10 @@
-"""Stage: narration. ElevenLabs text-to-speech with character timestamps.
+"""Stage: narration. Text-to-speech with character timestamps.
+
+Two providers, picked by TTS_PROVIDER:
+- elevenlabs: the hosted API, which returns character timestamps directly.
+- voicestudio: a local VoiceStudio backend (OpenAI-compatible API on :3900).
+  It has no timestamped TTS, so each chapter is transcribed back with word
+  timestamps and the words are aligned to the script text.
 
 Narration is generated one chapter at a time (with the neighbouring text sent
 as context so the delivery flows), cached by content hash, then joined with a
@@ -9,7 +15,10 @@ start time, and give the captions file.
 from __future__ import annotations
 
 import base64
+import difflib
+import re
 import subprocess
+import tempfile
 from pathlib import Path
 
 import requests
@@ -19,10 +28,133 @@ from ..util import PermanentError, read_json, retry, sha, write_json, write_text
 API = "https://api.elevenlabs.io/v1/text-to-speech/{voice}/with-timestamps"
 CHAPTER_PAUSE = 0.7
 PARAGRAPH_JOIN = "\n\n"
+# VoiceStudio caps /v1/audio/speech input at 4096 characters.
+VOICESTUDIO_CHUNK = 3500
+
+
+def _tts(ctx, text: str, prev: str, nxt: str) -> dict:
+    if ctx.settings.tts_provider == "voicestudio":
+        return _voicestudio_tts(ctx, text)
+    return _elevenlabs_tts(ctx, text, prev, nxt)
+
+
+def _chunks(text: str, limit: int = VOICESTUDIO_CHUNK) -> list[str]:
+    """Split on paragraphs, then sentences, so no request exceeds the limit."""
+    out: list[str] = []
+    for para in text.split(PARAGRAPH_JOIN):
+        pieces = [para] if len(para) <= limit else re.split(r"(?<=[.!?])\s+", para)
+        cur = ""
+        for piece in pieces:
+            if cur and len(cur) + 1 + len(piece) > limit:
+                out.append(cur)
+                cur = ""
+            cur = f"{cur} {piece}" if cur else piece
+        if cur:
+            out.append(cur)
+    return out
+
+
+def _norm(word: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", word.lower())
+
+
+def align_words(text: str, heard: list[dict], duration: float) -> dict:
+    """Map transcribed word timings onto every character of the script text.
+
+    Script words that the transcript matched take its timings; unmatched runs
+    are spread evenly between their matched neighbours. Returns the same shape
+    as ElevenLabs' alignment.
+    """
+    spans = [(m.start(), m.end()) for m in re.finditer(r"\S+", text)]
+    ours = [_norm(text[a:b]) for a, b in spans]
+    theirs = [_norm(str(w.get("word", ""))) for w in heard]
+    times: list[tuple[float, float] | None] = [None] * len(spans)
+    matcher = difflib.SequenceMatcher(None, ours, theirs, autojunk=False)
+    for block in matcher.get_matching_blocks():
+        for k in range(block.size):
+            w = heard[block.b + k]
+            times[block.a + k] = (float(w["start"]), float(w["end"]))
+    # Fill gaps by interpolating between the nearest timed words.
+    i = 0
+    while i < len(times):
+        if times[i] is not None:
+            i += 1
+            continue
+        j = i
+        while j < len(times) and times[j] is None:
+            j += 1
+        left = times[i - 1][1] if i > 0 else 0.0
+        right = times[j][0] if j < len(times) else duration
+        right = max(right, left)
+        step = (right - left) / (j - i)
+        for k in range(i, j):
+            times[k] = (left + (k - i) * step, left + (k - i + 1) * step)
+        i = j
+    starts = [0.0] * len(text)
+    ends = [0.0] * len(text)
+    for (a, b), (ws, we) in zip(spans, times):
+        for c in range(a, b):
+            frac0, frac1 = (c - a) / (b - a), (c - a + 1) / (b - a)
+            starts[c], ends[c] = ws + (we - ws) * frac0, ws + (we - ws) * frac1
+    # Whitespace takes the time of the gap it sits in.
+    last = 0.0
+    for c, ch in enumerate(text):
+        if ch.isspace():
+            starts[c] = ends[c] = last
+        else:
+            last = ends[c]
+    return {"characters": list(text), "character_start_times_seconds": starts,
+            "character_end_times_seconds": ends}
+
+
+@retry(attempts=4, base_delay=4)
+def _voicestudio_post(url: str, **kwargs) -> requests.Response:
+    try:
+        r = requests.post(url, timeout=900, **kwargs)
+    except requests.ConnectionError as exc:
+        raise PermanentError(f"VoiceStudio is not running at {url.split('/v1')[0]}: open the app first") from exc
+    if r.status_code in (400, 404, 409, 422):
+        raise PermanentError(f"VoiceStudio rejected the request ({r.status_code}): {r.text[:300]}")
+    r.raise_for_status()
+    return r
+
+
+def _voicestudio_tts(ctx, text: str) -> dict:
+    s = ctx.settings
+    voice = ctx.pack.get("voice", {}) or {}
+    with tempfile.TemporaryDirectory() as tmp:
+        parts = []
+        for n, chunk in enumerate(_chunks(text)):
+            r = _voicestudio_post(f"{s.voicestudio_url}/v1/audio/speech", json={
+                "model": s.voicestudio_model, "voice": s.voicestudio_voice, "input": chunk,
+                "response_format": "wav", "speed": voice.get("speed", 1.0), "language": "en",
+            })
+            part = Path(tmp) / f"part{n:03d}.wav"
+            part.write_bytes(r.content)
+            parts.append(part)
+        wav = Path(tmp) / "chapter.wav"
+        if len(parts) == 1:
+            wav = parts[0]
+        else:
+            lst = Path(tmp) / "list.txt"
+            lst.write_text("".join(f"file '{p}'\n" for p in parts), encoding="utf-8")
+            subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(lst),
+                            "-ar", "44100", "-ac", "1", str(wav)], check=True)
+        with wav.open("rb") as fh:
+            r = _voicestudio_post(f"{s.voicestudio_url}/v1/audio/transcriptions",
+                                  files={"file": ("chapter.wav", fh, "audio/wav")},
+                                  data={"response_format": "verbose_json", "language": "en",
+                                        "timestamp_granularities[]": "word"})
+        heard = r.json().get("words") or []
+        audio = wav.read_bytes()
+        duration = ffprobe_duration(wav)
+    if not heard:
+        ctx.log.warning("narration: VoiceStudio returned no word timestamps; spreading timing evenly")
+    return {"audio_base64": base64.b64encode(audio).decode(), "alignment": align_words(text, heard, duration)}
 
 
 @retry(attempts=5, base_delay=4)
-def _tts(ctx, text: str, prev: str, nxt: str) -> dict:
+def _elevenlabs_tts(ctx, text: str, prev: str, nxt: str) -> dict:
     s = ctx.settings
     if not s.elevenlabs_api_key or not s.elevenlabs_voice_id:
         raise PermanentError("Set ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID in .env")
@@ -120,8 +252,13 @@ def run(ctx) -> None:
         text = chapter_texts[c]
         prev = chapter_texts[order[i - 1]] if i > 0 else ""
         nxt = chapter_texts[order[i + 1]] if i + 1 < len(order) else ""
-        key = sha(f"{ctx.settings.elevenlabs_voice_id}|{ctx.settings.elevenlabs_model}|{ctx.pack.get('voice')}|{text}")
-        mp3, align_path = audio_dir / f"ch{c:02d}-{key}.mp3", audio_dir / f"ch{c:02d}-{key}.json"
+        s = ctx.settings
+        if s.tts_provider == "voicestudio":
+            voice_key, ext = f"voicestudio|{s.voicestudio_voice}|{s.voicestudio_model}", "wav"
+        else:
+            voice_key, ext = f"{s.elevenlabs_voice_id}|{s.elevenlabs_model}", "mp3"
+        key = sha(f"{voice_key}|{ctx.pack.get('voice')}|{text}")
+        mp3, align_path = audio_dir / f"ch{c:02d}-{key}.{ext}", audio_dir / f"ch{c:02d}-{key}.json"
         if not (mp3.exists() and align_path.exists()):
             data = _tts(ctx, text, prev, nxt)
             mp3.write_bytes(base64.b64decode(data["audio_base64"]))
@@ -154,7 +291,10 @@ def run(ctx) -> None:
         timeline_offset += ffprobe_duration(mp3) + CHAPTER_PAUSE
 
     if total_chars:
-        ctx.usage("elevenlabs", total_chars, "characters", ctx.settings.elevenlabs_model)
+        if ctx.settings.tts_provider == "voicestudio":
+            ctx.usage("voicestudio", total_chars, "characters", ctx.settings.voicestudio_model)
+        else:
+            ctx.usage("elevenlabs", total_chars, "characters", ctx.settings.elevenlabs_model)
 
     # Join chapters with silence into one WAV.
     concat_list = ctx.path("audio", "concat.txt")
@@ -163,7 +303,7 @@ def run(ctx) -> None:
                     "-t", str(CHAPTER_PAUSE), str(silence)], check=True)
     parts = []
     for i, seg in enumerate(segments):
-        wav = seg.with_suffix(".wav")
+        wav = seg.with_name(f"{seg.stem}.44k.wav")
         if not wav.exists():
             subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", str(seg), "-ar", "44100", "-ac", "1", str(wav)], check=True)
         parts.append(wav)

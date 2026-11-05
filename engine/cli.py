@@ -23,6 +23,8 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import requests
+
 from . import pipeline
 from .config import ROOT, Pack, Settings
 from .state import State
@@ -58,8 +60,19 @@ def cmd_doctor(args) -> int:
         line(shutil.which("claude") is not None, "Claude Code CLI found (LLM_PROVIDER=claude-code)")
     else:
         line(bool(settings.anthropic_api_key), "ANTHROPIC_API_KEY set (LLM_PROVIDER=api)")
-    line(bool(settings.elevenlabs_api_key), "ELEVENLABS_API_KEY set")
-    line(bool(settings.elevenlabs_voice_id), "ELEVENLABS_VOICE_ID set")
+    if settings.tts_provider == "voicestudio":
+        try:
+            r = requests.get(f"{settings.voicestudio_url}/v1/audio/voices", timeout=10)
+            line(r.ok, f"VoiceStudio running at {settings.voicestudio_url} ({r.status_code})")
+            names = {str(v.get(k, "")).lower() for v in r.json().get("voices", []) for k in ("voice_id", "name")} if r.ok else set()
+            if r.ok:
+                found = settings.voicestudio_voice.lower() in names or settings.voicestudio_voice == "default"
+                line(found, f"VoiceStudio voice '{settings.voicestudio_voice}' found")
+        except Exception as exc:  # noqa: BLE001
+            line(False, f"VoiceStudio not reachable at {settings.voicestudio_url} (open the app): {exc.__class__.__name__}")
+    else:
+        line(bool(settings.elevenlabs_api_key), "ELEVENLABS_API_KEY set")
+        line(bool(settings.elevenlabs_voice_id), "ELEVENLABS_VOICE_ID set")
     print(f"• Niche pack: {pack.name} ({pack.get('channel_name')})")
     music = pack.path / str(pack.get("audio.music_dir", "music"))
     tracks = [p for p in music.glob("*") if p.suffix.lower() in {".mp3", ".wav", ".m4a", ".ogg"}] if music.exists() else []

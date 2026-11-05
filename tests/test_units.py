@@ -84,3 +84,68 @@ def test_karaoke_states():
     assert states[0] == (0.0, 0.5, "")
     assert states[1][2] == "HELLO" and states[2][2] == "WORLD"
     assert abs(states[-1][1] - 2.0) < 1e-9
+
+
+def test_voicestudio_chunks_stay_under_limit():
+    from engine.stages.narration import _chunks
+
+    para = " ".join(["The dam rose another foot of concrete that week."] * 40)
+    text = "\n\n".join([para, "Short closing line."])
+    chunks = _chunks(text, limit=500)
+    assert all(len(c) <= 500 for c in chunks)
+    assert " ".join(chunks).split() == text.split()
+
+
+def test_align_words_maps_and_fills_gaps():
+    from engine.stages.narration import align_words
+
+    text = "In 1931, workers poured concrete."
+    # The recogniser drops "1931," and mishears nothing else.
+    heard = [{"word": "In", "start": 0.0, "end": 0.2},
+             {"word": "workers", "start": 1.0, "end": 1.5},
+             {"word": "poured", "start": 1.6, "end": 2.0},
+             {"word": "concrete.", "start": 2.1, "end": 2.8}]
+    a = align_words(text, heard, duration=3.0)
+    starts, ends = a["character_start_times_seconds"], a["character_end_times_seconds"]
+    assert len(starts) == len(text) == len(a["characters"])
+    assert starts[text.index("workers")] == 1.0
+    assert ends[len(text) - 1] == 2.8
+    year = text.index("1931")
+    assert 0.2 <= starts[year] < 1.0  # interpolated into the gap
+    assert starts == sorted(starts)
+
+
+def test_align_words_without_timestamps_spreads_evenly():
+    from engine.stages.narration import align_words
+
+    a = align_words("one two three four", [], duration=4.0)
+    assert a["character_start_times_seconds"][0] == 0.0
+    assert abs(a["character_end_times_seconds"][-1] - 4.0) < 1e-9
+
+
+def test_voicestudio_tts_requests_speech_then_word_timestamps(monkeypatch):
+    import base64
+    from types import SimpleNamespace
+
+    from engine.stages import narration
+
+    calls = []
+
+    def fake_post(url, **kw):
+        calls.append((url, kw))
+        if url.endswith("/v1/audio/speech"):
+            return SimpleNamespace(content=b"RIFFfakewav")
+        return SimpleNamespace(json=lambda: {"words": [{"word": "Hello", "start": 0.0, "end": 0.4},
+                                                       {"word": "dam.", "start": 0.5, "end": 0.9}]})
+
+    monkeypatch.setattr(narration, "_voicestudio_post", fake_post)
+    monkeypatch.setattr(narration, "ffprobe_duration", lambda p: 1.0)
+    settings = SimpleNamespace(voicestudio_url="http://127.0.0.1:3900", voicestudio_model="omnivoice",
+                               voicestudio_voice="Narrator", tts_provider="voicestudio")
+    ctx = SimpleNamespace(settings=settings, pack={"voice": {"speed": 0.95}}, log=SimpleNamespace(warning=print))
+    out = narration._tts(ctx, "Hello dam.", "", "")
+    speech = calls[0][1]["json"]
+    assert speech["voice"] == "Narrator" and speech["response_format"] == "wav" and speech["speed"] == 0.95
+    assert calls[1][1]["data"]["timestamp_granularities[]"] == "word"
+    assert base64.b64decode(out["audio_base64"]) == b"RIFFfakewav"
+    assert out["alignment"]["character_end_times_seconds"][-1] == 0.9
