@@ -62,12 +62,18 @@ def cmd_doctor(args) -> int:
         line(bool(settings.anthropic_api_key), "ANTHROPIC_API_KEY set (LLM_PROVIDER=api)")
     if settings.tts_provider == "voicestudio":
         try:
-            r = requests.get(f"{settings.voicestudio_url}/v1/audio/voices", timeout=10)
+            r = requests.get(f"{settings.voicestudio_url}/health", timeout=10)
             line(r.ok, f"VoiceStudio running at {settings.voicestudio_url} ({r.status_code})")
-            names = {str(v.get(k, "")).lower() for v in r.json().get("voices", []) for k in ("voice_id", "name")} if r.ok else set()
             if r.ok:
-                found = settings.voicestudio_voice.lower() in names or settings.voicestudio_voice == "default"
-                line(found, f"VoiceStudio voice '{settings.voicestudio_voice}' found")
+                # Engine presets (e.g. Kokoro's am_michael) aren't in /v1/audio/voices, so
+                # synthesize one word: it proves the voice, the engine and its licence at once.
+                r = requests.post(f"{settings.voicestudio_url}/v1/audio/speech", timeout=300, json={
+                    "model": settings.voicestudio_model, "voice": settings.voicestudio_voice,
+                    "input": "Test.", "response_format": "wav"})
+                ok_voice = r.ok and r.content[:4] == b"RIFF"
+                why = "" if ok_voice else f": {r.text[:200]}"
+                line(ok_voice, f"VoiceStudio speaks with voice '{settings.voicestudio_voice}' "
+                               f"on engine '{settings.voicestudio_model}'{why}")
         except Exception as exc:  # noqa: BLE001
             line(False, f"VoiceStudio not reachable at {settings.voicestudio_url} (open the app): {exc.__class__.__name__}")
     else:
