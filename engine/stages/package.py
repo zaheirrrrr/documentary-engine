@@ -4,6 +4,8 @@ footage credits, tags and a pinned comment."""
 
 from __future__ import annotations
 
+import re
+
 from ..scriptdoc import chapter_titles
 from ..util import read_json, write_json, write_text
 
@@ -16,6 +18,21 @@ def stamp(seconds: float) -> str:
     h, rem = divmod(s, 3600)
     m, s = divmod(rem, 60)
     return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def footage_summary(footage: list[str]) -> str:
+    """One line naming the collections, for when the per-film list is too long.
+    Credits look like "Title, prelinger via Internet Archive: url [licence]"."""
+    found: dict[str, list[str]] = {}
+    for c in footage:
+        m = re.search(r",\s*([^,]+?) via ([^:]+):", c)
+        if m:
+            name = m.group(1).strip()
+            names = found.setdefault(m.group(2).strip(), [])
+            if name[:1].upper() + name[1:] not in names:
+                names.append(name[:1].upper() + name[1:])
+    where = "; ".join(f"{' and '.join(n)} via {host}" for host, n in found.items()) or "public archives"
+    return f"{len(footage)} archival films from {where}. Full per-film credits available on request."
 
 
 def chapters(ctx) -> list[tuple[float, str]]:
@@ -91,16 +108,22 @@ def run(ctx) -> None:
     sources = [s for s in dossier.get("source_shelf", []) if s.get("url")]
     if sources:
         parts += ["SOURCES"] + [f"- {s.get('title','')}: {s['url']}" for s in sources[:15]] + [""]
-    if credits.get("footage"):
-        parts += ["ARCHIVAL FOOTAGE"] + [f"- {c}" for c in credits["footage"]] + [""]
+    footage = credits.get("footage", [])
+    if footage:
+        write_text(ctx.path("credits.txt"), "\n".join(footage) + "\n")
+    tail: list[str] = []
     if credits.get("music"):
-        parts += ["MUSIC"] + [f"- {c}" for c in credits["music"]] + [""]
+        tail += ["MUSIC"] + [f"- {c}" for c in credits["music"]] + [""]
     footer = ctx.pack.get("package.footer", "")
     if footer:
-        parts.append(footer)
-    description = "\n".join(parts).strip()
+        tail.append(footer)
+    full = parts + (["ARCHIVAL FOOTAGE"] + [f"- {c}" for c in footage] + [""] if footage else [])
+    description = "\n".join(full + tail).strip()
+    if len(description) > DESCRIPTION_LIMIT and footage:
+        # The full list lives in credits.txt; the description names the collections.
+        description = "\n".join(parts + ["ARCHIVAL FOOTAGE", footage_summary(footage), ""] + tail).strip()
     if len(description) > DESCRIPTION_LIMIT:
-        description = description[:DESCRIPTION_LIMIT].rsplit("\n", 1)[0] + "\n(Full source list in the pinned comment.)"
+        description = description[:DESCRIPTION_LIMIT].rsplit("\n", 1)[0]
 
     tags: list[str] = []
     for t in data.get("tags", []):
@@ -114,7 +137,9 @@ def run(ctx) -> None:
     lines += ["", "Draft thumbnails are in `thumbnails/`.", "", "## Description (copy everything in the box)", "", "```", description, "```"]
     lines += ["", "## Tags", "", "```", ", ".join(tags), "```"]
     lines += ["", "## Pinned comment", "", data.get("pinned_comment", "")]
-    lines += ["", "## Files", "- Video: `final.mp4`", "- Captions: `captions.srt` (upload under Subtitles)", ""]
+    lines += ["", "## Files", "- Video: `final.mp4`", "- Captions: `captions.srt` (upload under Subtitles)"]
+    lines += ["- Footage credits: `credits.txt` (every film used)"] if footage else []
+    lines += [""]
     lines += [
         "## Before you press publish",
         "- [ ] Watched the whole video",

@@ -15,6 +15,8 @@ video:
   fps: 30
   chapters_min: 5
   chapters_max: 8
+  # Sentence subtitles burned into the long video, following the narration.
+  subtitles: {font: "Montserrat-VariableFont_wght.ttf", size: 36, weight: 600, color: "#F39C2B", y: 1010}
 
 shorts:
   # Vertical Shorts cut from a finished long video's research (de shorts <id>).
@@ -66,12 +68,29 @@ footage:
   collections:
     - {id: prelinger, trusted: false, note: "Prelinger Archives: industrial, corporate, educational films"}
     - {id: FedFlix, trusted: true, note: "US federal government films (same source as destockd.com)"}
+  destockd: true                 # search destockd.com's shot-level index of FedFlix first
   min_clip_seconds: 3
   max_clip_seconds: 9
   skip_head_fraction: 0.08       # avoid title cards at the start of a film
   skip_tail_fraction: 0.08       # avoid end credits
   candidates_per_beat: 4
-  grade: "vintage"               # vintage | neutral
+  # Never acceptable in any shot. The archives are full of war films, so this
+  # list is applied to every beat on top of the beat's own avoid list.
+  avoid:
+    - "soldiers, military uniforms, weapons or war damage"
+    - "famous politicians, leaders or recognisable public figures"
+    - "title cards, intertitles, credits, readable signs, labels or brand logos"
+    - "cartoons or animation"
+    - "colour footage or modern scenes"
+    - "funerals, cemeteries, injuries or first-aid scenes"
+    - "car stunts, explosions or other spectacle unrelated to the line"
+  min_brightness: 38             # frames darker than this are skipped before review
+  max_brightness: 215            # ...and brighter than this (blown out)
+  min_contrast: 22               # ...and flatter than this (washed out)
+  auto_reshoot_rounds: 2         # shotcheck searches again for failed shots this many times
+  grade: "bw"                    # bw | vintage | neutral
+  fit: "fill"                    # fill: crop 4:3 film to fill 16:9 | blur: show it whole over a blurred copy
+  backdrop_cards: true           # number and quote beats get footage too, with their text laid over it
   strip_source_audio: true       # always true: avoids audio Content ID claims
 
 audio:

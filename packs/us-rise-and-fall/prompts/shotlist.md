@@ -18,11 +18,23 @@ For every beat with kind "narration", choose ONE visual:
   - "alt_query": a broader fallback query
   - "look_for": one sentence describing the ideal shot for a reviewer checking frames
   - "avoid": things that would be wrong in shot (e.g. "cartoons, colour footage from the 1970s, people talking to camera")
-- "number": a full-screen number card when the beat turns on one striking figure. Give "big_text" (e.g. "$4 million") and "small_text" (e.g. "about $140 million today").
+- "number": the beat's one striking figure, shown large over moving footage. Give "big_text" (e.g. "$4 million") and "small_text" (e.g. "about $140 million today"), plus "query", "alt_query", "look_for" and "avoid" for the footage behind it, as for "archival".
+
+How the search works, so your queries land:
+- It matches what is VISIBLE in the picture, not the era, the place or who is
+  in it. "1930s Chicago banker" finds nothing useful; "man at desk signing
+  papers" does. Never name people, companies, events or cities.
+- Name concrete, filmable things: "electric meter", "power lines", "stock
+  ticker tape", "courthouse exterior", "bank vault door", "family photograph".
+- The archives are full of war, military and government footage. Steer away
+  from anything that could pull those up (no "officials", "trial", "leaders").
+- Money: ask for "banknotes", "coins", "cash register", "bank vault", never
+  just "money".
+- Night, fog and interiors often come back too dark; prefer daylight subjects.
 
 Use "number" for at most one beat in eight. Keep consecutive archival beats
 visually varied: do not give two neighbouring beats the same query.
 
 Return only JSON inside <json></json> tags:
-{"beats": [{"id": 1, "visual": "archival", "query": "", "alt_query": "", "look_for": "", "avoid": ""}, {"id": 2, "visual": "number", "big_text": "", "small_text": ""}]}
+{"beats": [{"id": 1, "visual": "archival", "query": "", "alt_query": "", "look_for": "", "avoid": ""}, {"id": 2, "visual": "number", "big_text": "", "small_text": "", "query": "", "alt_query": "", "look_for": "", "avoid": ""}]}
 Include an entry for every narration beat id, in order. Skip quote beats.

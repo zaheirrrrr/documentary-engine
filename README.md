@@ -20,13 +20,15 @@ rise and fall of America's great builds and businesses.
 | 5 | factcheck | Every claim checked against the dossier; exact fixes applied; leftovers listed. | `factcheck.md` |
 | 6 | **review_script** | **You** read and edit `script.md`, then `de approve`. | |
 | 7 | shotlist | Script split into 6–10 s beats in code (no words lost); Claude picks a visual per beat. | `shotlist.json` |
-| 8 | narration | ElevenLabs, one chapter per call, with character timestamps. | `narration.wav`, `timing.json`, `captions.srt` |
-| 9 | footage | archive.org search (licence-filtered), 3-frame contact sheets, Claude vision picks the fitting clip, clip cut with no audio. | `footage/clips/`, `footage.json`, `credits.json` |
-| 10 | render | Clips framed over blurred fill, vintage grade, grain, quote and number cards, chapter titles, music ducking, −14 LUFS. | `final.mp4` |
-| 11 | package | Titles, thumbnail text, description with chapters + sources + footage credits, tags, pinned comment. | `upload_pack.md`, `description.txt` |
-| 12 | thumbnail | Each concept gets frames found on archive.org for its brief, is drawn in its layout (split, versus, subject, number), checked at phone size, and judged by Claude; the best 3 different ones are ready for Test & Compare. | `thumbnails/thumb1-3.jpg`, `thumbnails.md` |
-| 13 | qa | Length, streams, black frames, loudness, fallbacks, open fact-check items. | `qa.md`, `review.html` |
-| 14 | **review_final** | **You** watch `review.html`, then upload by hand. | |
+| 8 | narration | VoiceStudio (local) or ElevenLabs, one chapter per call, with character timestamps. | `narration.wav`, `timing.json`, `captions.srt` |
+| 9 | footage | destockd.com shot-level visual search of FedFlix (when the pack enables it), then archive.org search (licence-filtered). 4-frame contact sheets; too-dark, blown-out and flat windows are dropped; Claude vision picks the clip that fits the line and the pack's `footage.avoid` list. If the vision check fails the stage **stops** rather than use unvetted footage. Number and quote beats get footage too. | `footage/clips/`, `footage.json`, `credits.json` |
+| 10 | shotcheck | Every cut clip is audited against its line (frames across the whole clip, a few beats per vision call). Failed shots are searched again automatically (`footage.auto_reshoot_rounds`) with the rejected film blocked for that beat. | `shotcheck.html`, `shotcheck.json` |
+| 11 | **review_shots** | **You** open `shotcheck.html` (problems listed first). `de reshoot <id> <beat...>` replaces any shot you dislike; then `de approve`. Nothing is rendered before this. | |
+| 12 | render | One render: clips cropped to fill the frame (centred black bars removed), black-and-white grade, number/quote text over moving footage, chapter titles, burned-in subtitles, music ducking, −14 LUFS, bitrate capped at 12 Mbps. Resumes segment by segment. | `final.mp4` |
+| 13 | package | Titles, thumbnail text, description with chapters + sources, tags, pinned comment. The per-film footage list goes in the description when it fits, else a one-line credit plus `credits.txt`. | `upload_pack.md`, `description.txt`, `credits.txt` |
+| 14 | thumbnail | Each concept gets frames found on archive.org for its brief, is drawn in its layout (split, versus, subject, number), checked at phone size, and judged by Claude; the best 3 different ones are ready for Test & Compare. | `thumbnails/thumb1-3.jpg`, `thumbnails.md` |
+| 15 | qa | Length, streams, black frames, loudness, fallbacks, shot check, open fact-check items. | `qa.md`, `review.html` |
+| 16 | **review_final** | **You** watch `review.html`, then upload by hand. | |
 
 Every stage is checkpointed in SQLite. A crash or a closed laptop costs at most
 the stage that was running: `de run <id>` resumes there. Network calls retry
@@ -49,8 +51,13 @@ Keys:
 - **Claude**: `ANTHROPIC_API_KEY` from console.anthropic.com (`LLM_PROVIDER=api`),
   or `LLM_PROVIDER=claude-code` to run through the `claude` CLI on a Claude
   Code plan.
-- **ElevenLabs**: `ELEVENLABS_API_KEY` and the `ELEVENLABS_VOICE_ID` of the
-  narrator voice.
+- **Narration**, one of:
+  - **VoiceStudio** (`TTS_PROVIDER=voicestudio`, the default): free and local.
+    Install the [VoiceStudio](https://github.com/debpalash/VoiceStudio) app,
+    keep it open, and set `VOICESTUDIO_VOICE` to a voice profile made in it.
+    Word timings come from VoiceStudio's own transcription of each chapter.
+  - **ElevenLabs** (`TTS_PROVIDER=elevenlabs`): `ELEVENLABS_API_KEY` and the
+    `ELEVENLABS_VOICE_ID` of the narrator voice.
 
 Optional: put royalty-free music in `packs/<pack>/music/` with a
 `credits.txt` (one credit line per track). Videos render without music too.
@@ -63,13 +70,21 @@ de discover --count 10                 # propose + score topics
 de topics --detail                     # read them
 de pick 4 --run                        # research → title → script, stops for your review
 # read packaging.md (title ranking) and script.md; edit either if you want
-de approve 1 --run                     # narration → footage → render → QA
+de approve 1 --run                     # narration → footage → shot check, stops for your review
+# open shotcheck.html; replace any wrong shot (searches again, no render):
+de reshoot 1 25 98                     # beats 25 and 98
+de approve 1 --run                     # render once → package → thumbnails → QA
 de review 1 --open                     # watch the video, read the upload pack
 de approve 1                           # final sign-off
 # upload final.mp4 by hand using upload_pack.md
 de published 1 https://youtu.be/...
 de notes 1 "Retention dipped at 4:10, chapter 3 too slow"
 ```
+
+Spend nothing twice: approve the script before narration, approve the shots
+before the render. `de redo <id> --from render` reuses finished segments
+(add `--fresh` only after changing the grade or framing); `de reshoot`
+removes just the segments of the beats it replaces.
 
 Other commands: `de shorts <id> --run`, `de status [id]`, `de redo <id> --from footage --run`,
 `de new "My own topic" --wikipedia "Exact article" --era 1890-1930 --run`,

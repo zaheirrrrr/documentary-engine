@@ -21,8 +21,10 @@ For each claim decide:
 
 Only list claims that are unsupported, contradicted, or style problems, plus
 a count of supported claims. For each problem give the exact sentence from the
-script and a corrected sentence that only uses dossier facts (or removes the
-claim).
+script and, as "fix", the corrected sentence exactly as it should be narrated,
+using only dossier facts. "fix" is pasted straight into the script, so it must
+be narration text, never an instruction to an editor. To cut a sentence
+entirely, set "fix" to an empty string.
 
 Return only JSON inside <json></json> tags:
 {

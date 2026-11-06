@@ -16,3 +16,13 @@ permission from the skills' authors. The engine runs without them.
 ## Fonts
 - `packs/us-rise-and-fall/fonts/Montserrat-VariableFont_wght.ttf`: Montserrat,
   SIL Open Font License 1.1 (free to bundle and redistribute).
+
+## VoiceStudio (optional narration provider)
+
+[debpalash/VoiceStudio](https://github.com/debpalash/VoiceStudio) is licensed
+AGPL-3.0. The engine does not include or modify any of its code: it talks to a
+separately installed VoiceStudio app over its local HTTP API, the same way it
+talks to ElevenLabs. Buyers install VoiceStudio themselves. Do not bundle
+VoiceStudio's code or binaries inside a sold copy of this engine without
+meeting the AGPL's terms. VoiceStudio adds an invisible "synthetic speech"
+watermark to generated audio.

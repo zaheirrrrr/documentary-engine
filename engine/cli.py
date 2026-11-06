@@ -23,6 +23,8 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import requests
+
 from . import pipeline
 from .config import ROOT, Pack, Settings
 from .state import State
@@ -58,8 +60,25 @@ def cmd_doctor(args) -> int:
         line(shutil.which("claude") is not None, "Claude Code CLI found (LLM_PROVIDER=claude-code)")
     else:
         line(bool(settings.anthropic_api_key), "ANTHROPIC_API_KEY set (LLM_PROVIDER=api)")
-    line(bool(settings.elevenlabs_api_key), "ELEVENLABS_API_KEY set")
-    line(bool(settings.elevenlabs_voice_id), "ELEVENLABS_VOICE_ID set")
+    if settings.tts_provider == "voicestudio":
+        try:
+            r = requests.get(f"{settings.voicestudio_url}/health", timeout=10)
+            line(r.ok, f"VoiceStudio running at {settings.voicestudio_url} ({r.status_code})")
+            if r.ok:
+                # Engine presets (e.g. Kokoro's am_michael) aren't in /v1/audio/voices, so
+                # synthesize one word: it proves the voice, the engine and its licence at once.
+                r = requests.post(f"{settings.voicestudio_url}/v1/audio/speech", timeout=300, json={
+                    "model": settings.voicestudio_model, "voice": settings.voicestudio_voice,
+                    "input": "Test.", "response_format": "wav"})
+                ok_voice = r.ok and r.content[:4] == b"RIFF"
+                why = "" if ok_voice else f": {r.text[:200]}"
+                line(ok_voice, f"VoiceStudio speaks with voice '{settings.voicestudio_voice}' "
+                               f"on engine '{settings.voicestudio_model}'{why}")
+        except Exception as exc:  # noqa: BLE001
+            line(False, f"VoiceStudio not reachable at {settings.voicestudio_url} (open the app): {exc.__class__.__name__}")
+    else:
+        line(bool(settings.elevenlabs_api_key), "ELEVENLABS_API_KEY set")
+        line(bool(settings.elevenlabs_voice_id), "ELEVENLABS_VOICE_ID set")
     print(f"• Niche pack: {pack.name} ({pack.get('channel_name')})")
     music = pack.path / str(pack.get("audio.music_dir", "music"))
     tracks = [p for p in music.glob("*") if p.suffix.lower() in {".mp3", ".wav", ".m4a", ".ogg"}] if music.exists() else []
@@ -286,14 +305,31 @@ def cmd_redo(args) -> int:
     settings, state, _ = _setup(args)
     cleared = pipeline.reset_from(state, args.project_id, args.from_stage)
     project_dir = _project_dir(settings, state, args.project_id)
-    if "render" in cleared:
-        shutil.rmtree(project_dir / "render", ignore_errors=True)
+    if "render" in cleared and (args.fresh or "footage" in cleared):
+        shutil.rmtree(project_dir / "render", ignore_errors=True)  # otherwise finished segments are reused
     if "footage" in cleared:
         (project_dir / "footage.json").unlink(missing_ok=True)
         shutil.rmtree(project_dir / "footage" / "clips", ignore_errors=True)
     print(f"Reset: {', '.join(cleared)}")
     if args.run:
         return 1 if pipeline.run(settings, state, args.project_id) == "failed" else 0
+    return 0
+
+
+def cmd_reshoot(args) -> int:
+    from .stages import footage, shotcheck
+
+    settings, state, _ = _setup(args)
+    ctx = pipeline.build_context(settings, state, args.project_id)
+    footage.reshoot(ctx, args.beats)
+    results = shotcheck.check(ctx, only=args.beats, rounds=0)
+    for b in args.beats:
+        r = results.get(str(b), {})
+        print(f"beat {b}: {'OK' if r.get('ok') else r.get('problem', 'no result')}")
+    print(f"Look again: {ctx.dir / 'shotcheck.html'}")
+    rendered = state.stage(args.project_id, "render")
+    if rendered is not None and rendered["status"] == "done":
+        print(f"Only these beats' segments were removed. Re-render with: de redo {args.project_id} --from render --run")
     return 0
 
 
@@ -421,8 +457,14 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("redo", help="re-run from a stage onward")
     s.add_argument("project_id", type=int)
     s.add_argument("--from", dest="from_stage", required=True, choices=pipeline.STAGE_NAMES)
+    s.add_argument("--fresh", action="store_true", help="also delete rendered segments (e.g. after a grade change)")
     s.add_argument("--run", action="store_true")
     s.set_defaults(fn=cmd_redo)
+
+    s = sub.add_parser("reshoot", help="replace the footage of some beats and re-check them")
+    s.add_argument("project_id", type=int)
+    s.add_argument("beats", type=int, nargs="+")
+    s.set_defaults(fn=cmd_reshoot)
 
     s = sub.add_parser("review", help="path to the review page")
     s.add_argument("project_id", type=int)

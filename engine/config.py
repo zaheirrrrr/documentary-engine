@@ -52,6 +52,10 @@ class Settings:
     elevenlabs_model: str
     user_agent: str
     youtube_api_key: str = ""
+    tts_provider: str = "elevenlabs"  # "elevenlabs" or "voicestudio"
+    voicestudio_url: str = "http://127.0.0.1:3900"
+    voicestudio_voice: str = "default"
+    voicestudio_model: str = "mlx-audio"
 
     @classmethod
     def load(cls) -> "Settings":
@@ -71,6 +75,10 @@ class Settings:
             elevenlabs_model=_env("ELEVENLABS_MODEL", "eleven_multilingual_v2"),
             user_agent=_env("DE_USER_AGENT", "documentary-engine/0.1"),
             youtube_api_key=_env("YOUTUBE_API_KEY"),
+            tts_provider=_env("TTS_PROVIDER", "elevenlabs").lower(),
+            voicestudio_url=_env("VOICESTUDIO_URL", "http://127.0.0.1:3900").rstrip("/"),
+            voicestudio_voice=_env("VOICESTUDIO_VOICE", "default"),
+            voicestudio_model=_env("VOICESTUDIO_MODEL", "mlx-audio"),
         )
 
     @property

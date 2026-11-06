@@ -3,8 +3,11 @@
 Order of work for one video project:
 
   research -> concept -> outline -> script -> factcheck -> [GATE review_script]
-  -> shotlist -> narration -> footage -> render -> package -> thumbnail
-  -> qa -> [GATE review_final]
+  -> shotlist -> narration -> footage -> shotcheck -> [GATE review_shots]
+  -> render -> package -> thumbnail -> qa -> [GATE review_final]
+
+Every shot is checked against its line (shotcheck) and approved by you
+(review_shots) before anything is rendered, so the render runs once.
 
 Each stage reads its inputs from the project folder and writes its outputs
 there. A finished stage is never re-run unless you reset it, so a crash at
@@ -37,8 +40,10 @@ STAGES: list[tuple[str, str, str]] = [
     ("factcheck", "engine.stages.factcheck", "Check every claim against the dossier"),
     ("review_script", GATE, "YOU: read script.md, edit if needed, then approve"),
     ("shotlist", "engine.stages.shotlist", "Split script into timed visual beats"),
-    ("narration", "engine.stages.narration", "Generate narration with ElevenLabs"),
+    ("narration", "engine.stages.narration", "Generate narration (VoiceStudio or ElevenLabs)"),
     ("footage", "engine.stages.footage", "Find and cut public-domain footage per beat"),
+    ("shotcheck", "engine.stages.shotcheck", "Check every cut shot against its line; re-search the misses"),
+    ("review_shots", GATE, "YOU: open shotcheck.html, `de reshoot` any wrong shot, then approve"),
     ("render", "engine.stages.render", "Assemble the video with FFmpeg"),
     ("package", "engine.stages.package", "Titles, description, chapters, credits, tags"),
     ("thumbnail", "engine.stages.thumbnail", "Three draft thumbnails from the best frames"),
