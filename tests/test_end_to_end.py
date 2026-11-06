@@ -90,6 +90,9 @@ class FakeLLM:
                     out.append({"id": b["id"], "visual": "archival", "query": "dam construction", "alt_query": "river",
                                 "look_for": "workers", "avoid": "text"})
             return {"beats": out}
+        if "picture editor checking" in prompt:
+            ids = [int(i) for i in re.findall(r"Image \d+: beat (\d+)\.", prompt)]
+            return {"beats": [{"id": i, "ok": True, "problem": ""} for i in ids]}
         if "candidate archive shots" in prompt:
             return {"best": 1, "usable": [1, 2], "reason": "fits"}
         if "You are the packaging lead" in prompt:
@@ -189,6 +192,12 @@ def test_full_pipeline(tmp_path, monkeypatch, film):
 
     assert pipeline.approve(state, pid) == "review_script"
     assert pipeline.run(settings, state, pid, echo=log.append) == "waiting", "\n".join(log)
+    assert not (proj / "final.mp4").exists(), "nothing renders before the shots are approved"
+    checked = json.loads((proj / "shotcheck.json").read_text())
+    assert checked and all(v["ok"] for v in checked.values())
+    assert "Shot check" in (proj / "shotcheck.html").read_text()
+    assert pipeline.approve(state, pid) == "review_shots"
+    assert pipeline.run(settings, state, pid, echo=log.append) == "waiting", "\n".join(log)
 
     final = proj / "final.mp4"
     assert final.exists()
@@ -238,6 +247,8 @@ def test_short_pipeline(tmp_path, monkeypatch, film):
     assert "ON-SCREEN" not in (d / "script.md").read_text()
     assert "PASS" in (d / "script_check.md").read_text()
     pipeline.approve(state, pid)
+    assert pipeline.run(settings, state, pid, echo=log.append) == "waiting", "\n".join(log)
+    assert pipeline.approve(state, pid) == "review_shots"
     assert pipeline.run(settings, state, pid, echo=log.append) == "waiting", "\n".join(log)
 
     probe = json.loads(subprocess.run(["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json",

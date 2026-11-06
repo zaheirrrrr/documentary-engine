@@ -54,6 +54,24 @@ def _chunks(text: str, limit: int = VOICESTUDIO_CHUNK) -> list[str]:
     return out
 
 
+_MONEY = re.compile(r"\$(\d+(?:,\d{3})*(?:\.\d+)?)(\s+(?:thousand|million|billion|trillion)\b)?", re.I)
+
+
+def spoken(text: str) -> str:
+    """Rewrite dollar figures the way a narrator says them.
+
+    Kokoro reads "$100 million" as "a hundred dollars million", so the unit
+    moves after the number: "$100 million" -> "100 million dollars",
+    "$500,000" -> "500,000 dollars". Only the TTS input changes; captions and
+    timings still use the script text.
+    """
+    def say(m: re.Match) -> str:
+        number, scale = m.group(1), m.group(2) or ""
+        unit = "dollar" if number == "1" and not scale else "dollars"
+        return f"{number}{scale} {unit}"
+    return _MONEY.sub(say, text)
+
+
 def _norm(word: str) -> str:
     return re.sub(r"[^a-z0-9]", "", word.lower())
 
@@ -130,7 +148,7 @@ def _voicestudio_tts(ctx, text: str) -> dict:
         parts = []
         for n, chunk in enumerate(_chunks(text)):
             r = _voicestudio_post(f"{s.voicestudio_url}/v1/audio/speech", json={
-                "model": s.voicestudio_model, "voice": s.voicestudio_voice, "input": chunk,
+                "model": s.voicestudio_model, "voice": s.voicestudio_voice, "input": spoken(chunk),
                 "response_format": "wav", "speed": voice.get("speed", 1.0), "language": "en",
             })
             part = Path(tmp) / f"part{n:03d}.wav"

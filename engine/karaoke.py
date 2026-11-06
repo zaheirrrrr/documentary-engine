@@ -19,11 +19,11 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from .cards import SANS_BOLD, font as find_font
 
 
-def _font(path: Path | None, size: int) -> ImageFont.FreeTypeFont:
+def _font(path: Path | None, size: int, weight: int = 900) -> ImageFont.FreeTypeFont:
     if path and path.exists():
         f = ImageFont.truetype(str(path), size)
         try:
-            f.set_variation_by_axes([900])  # Black weight
+            f.set_variation_by_axes([weight])  # 900 = Black
         except Exception:  # noqa: BLE001 - static fonts have no axes
             pass
         return f
@@ -31,21 +31,22 @@ def _font(path: Path | None, size: int) -> ImageFont.FreeTypeFont:
 
 
 def _shadowed_text(canvas: Image.Image, xy_center: tuple[int, int], lines: list[str], fnt, fill="#FFFFFF",
-                   line_gap: float = 1.08, shadow_alpha: int = 190) -> None:
+                   line_gap: float = 1.08, shadow_alpha: int = 190, shadow: tuple[int, int, int] = (3, 6, 9), shadow_stroke: int = 0) -> None:
     w, _ = canvas.size
     draw = ImageDraw.Draw(canvas)
     heights = [draw.textbbox((0, 0), l, font=fnt)[3] for l in lines]
     step = int(max(heights) * line_gap) if heights else 0
     y = xy_center[1] - (step * len(lines)) // 2
-    shadow = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-    sd = ImageDraw.Draw(shadow)
+    dx, dy, blur = shadow
+    layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    sd = ImageDraw.Draw(layer)
     for line in lines:
         tw = draw.textlength(line, font=fnt)
         x = (w - tw) // 2
-        sd.text((x + 3, y + 6), line, font=fnt, fill=(0, 0, 0, shadow_alpha))
+        sd.text((x + dx, y + dy), line, font=fnt, fill=(0, 0, 0, shadow_alpha), stroke_width=shadow_stroke,
+                stroke_fill=(0, 0, 0, shadow_alpha))
         y += step
-    shadow = shadow.filter(ImageFilter.GaussianBlur(9))
-    canvas.alpha_composite(shadow)
+    canvas.alpha_composite(layer.filter(ImageFilter.GaussianBlur(blur)))
     y = xy_center[1] - (step * len(lines)) // 2
     for line in lines:
         tw = draw.textlength(line, font=fnt)
@@ -108,6 +109,68 @@ def build_overlay(words: list[tuple[str, float, float]], total: float, hook_text
         entries.append((cache[key], b - a))
 
     listing = out_dir / "captions.txt"
+    lines = []
+    for path, dur in entries:
+        lines += [f"file '{path.resolve()}'", f"duration {dur:.3f}"]
+    lines.append(f"file '{entries[-1][0].resolve()}'")  # concat demuxer needs the last file twice
+    listing.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return listing
+
+
+def subtitle_states(words: list[tuple[str, float, float]], total: float, max_words: int = 8,
+                    max_seconds: float = 3.5) -> list[tuple[float, float, str]]:
+    """(start, end, line) runs covering 0..total for sentence-style subtitles.
+
+    Words are grouped like captions.srt (a line ends at a sentence end, or at
+    max_words or max_seconds). A line stays up until the next one starts,
+    unless the pause is long, so short gaps do not flicker.
+    """
+    groups: list[list[tuple[str, float, float]]] = []
+    group: list[tuple[str, float, float]] = []
+    for w in words:
+        group.append(w)
+        if len(group) >= max_words or (group[-1][2] - group[0][1]) >= max_seconds or w[0].endswith((".", "?", "!", ";", ":")):
+            groups.append(group)
+            group = []
+    if group:
+        groups.append(group)
+    states: list[tuple[float, float, str]] = []
+    t = 0.0
+    for i, g in enumerate(groups):
+        start, end = g[0][1], g[-1][2]
+        nxt = groups[i + 1][0][1] if i + 1 < len(groups) else total
+        stop = nxt if nxt - end < 0.6 else end + 0.3
+        if start > t + 0.02:
+            states.append((t, start, ""))
+        states.append((max(start, t), min(stop, total), " ".join(x[0] for x in g)))
+        t = min(stop, total)
+    if t < total:
+        states.append((t, total, ""))
+    return [(a, b, line) for a, b, line in states if b - a > 0.01]
+
+
+def build_subtitles(words: list[tuple[str, float, float]], total: float, out_dir: Path, size: tuple[int, int],
+                    font_path: Path | None, font_size: int = 36, y: int = 1010, color: str = "#F39C2B",
+                    weight: int = 600) -> Path:
+    """Write subtitle PNGs for a long video and a concat list; returns the list path."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    w, h = size
+    fnt = _font(font_path, font_size, weight)
+    blur = max(2, font_size // 12)
+    cache: dict[str, Path] = {}
+    entries: list[tuple[Path, float]] = []
+    for a, b, line in subtitle_states(words, total):
+        if line not in cache:
+            img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            if line:
+                rows = textwrap.wrap(line, width=70)
+                _shadowed_text(img, (w // 2, y), rows, fnt, fill=color, line_gap=1.2, shadow_alpha=220,
+                               shadow=(1, 2, blur), shadow_stroke=2)
+            path = out_dir / f"s{len(cache):04d}.png"
+            img.save(path)
+            cache[line] = path
+        entries.append((cache[line], b - a))
+    listing = out_dir / "subtitles.txt"
     lines = []
     for path, dur in entries:
         lines += [f"file '{path.resolve()}'", f"duration {dur:.3f}"]

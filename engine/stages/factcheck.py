@@ -7,6 +7,8 @@ to settle at the script review.
 
 from __future__ import annotations
 
+import re
+
 from ..dossier import render
 from ..scriptdoc import parse_blocks
 from ..util import normalise_for_match, read_json, write_json, write_text
@@ -37,6 +39,9 @@ def quote_report(ctx, script: str) -> list[str]:
     return notes
 
 
+INSTRUCTION = re.compile(r"(remove|delete|cut|drop|omit)\b.*\b(sentence|line|claim)\b", re.I)
+
+
 def run(ctx) -> None:
     script_path = ctx.dir / "script.md"
     script = script_path.read_text(encoding="utf-8")
@@ -45,8 +50,12 @@ def run(ctx) -> None:
     applied, unresolved = [], []
     for p in first["problems"]:
         sentence, fix = p.get("sentence", "").strip(), p.get("fix", "").strip()
+        if INSTRUCTION.match(fix):
+            fix = ""  # "Remove the sentence..." is an editor's note, not narration
         if sentence and sentence in script:
             script = script.replace(sentence, fix, 1)
+            if not fix:
+                script = re.sub(r"[ \t]{2,}", " ", script)
             applied.append(p)
         else:
             unresolved.append(p)

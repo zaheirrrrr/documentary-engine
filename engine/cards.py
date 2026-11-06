@@ -97,6 +97,65 @@ def number_card(big: str, small: str, dest: Path, size=(1920, 1080), accent="#E8
     return dest
 
 
+def _scrim(size: tuple[int, int], alpha: int) -> Image.Image:
+    """Transparent canvas darkened evenly, and more in a soft band across the middle
+    where the text sits, so it reads over bright footage without darkening the edges."""
+    w, h = size
+    img = Image.new("RGBA", size, (0, 0, 0, alpha))
+    band = Image.new("L", size, 0)
+    ImageDraw.Draw(band).rectangle((int(w * 0.12), int(h * 0.28), int(w * 0.88), int(h * 0.72)), fill=255)
+    band = band.filter(ImageFilter.GaussianBlur(min(w, h) // 9))
+    img.paste((0, 0, 0, min(255, alpha + 90)), (0, 0), band)
+    return img
+
+
+def _shadowed(img: Image.Image, xy: tuple[float, float], text: str, fnt, fill) -> None:
+    shadow = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    ImageDraw.Draw(shadow).text((xy[0] + 3, xy[1] + 4), text, font=fnt, fill=(0, 0, 0, 230),
+                                stroke_width=4, stroke_fill=(0, 0, 0, 230))
+    img.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(7)))
+    ImageDraw.Draw(img).text(xy, text, font=fnt, fill=fill)
+
+
+def number_overlay(big: str, small: str, dest: Path, size=(1920, 1080), accent="#F2F0EA",
+                   fonts: list[Path] | None = None) -> Path:
+    """Transparent PNG: a number card's text, to lay over moving footage."""
+    w, h = size
+    img = _scrim(size, 120)
+    d = ImageDraw.Draw(img)
+    bf = font(SERIF_BOLD, 190 if len(big) < 10 else 140, fonts)
+    sf = font(SERIF, 54, fonts)
+    _shadowed(img, ((w - d.textlength(big, font=bf)) // 2, h // 2 - 170), big, bf, accent)
+    if small:
+        for i, line in enumerate(_wrap(d, small, sf, int(w * 0.7))):
+            _shadowed(img, ((w - d.textlength(line, font=sf)) // 2, h // 2 + 80 + i * 70), line, sf, (235, 232, 225, 255))
+    img.save(dest)
+    return dest
+
+
+def quote_overlay(text: str, attribution: str, dest: Path, size=(1920, 1080), fonts: list[Path] | None = None) -> Path:
+    """Transparent PNG: a quote card's text, to lay over moving footage."""
+    w, h = size
+    img = _scrim(size, 150)
+    d = ImageDraw.Draw(img)
+    n = len(text)
+    body_size = 76 if n < 120 else 64 if n < 220 else 54 if n < 360 else 44
+    body = font(SERIF, body_size, fonts)
+    lines = _wrap(d, f"“{text}”", body, int(w * 0.72))
+    line_h = int(body_size * 1.38)
+    attr_font = font(SERIF_BOLD, int(body_size * 0.62), fonts)
+    y = (h - len(lines) * line_h - (int(body_size * 1.6) if attribution else 0)) // 2
+    for line in lines:
+        _shadowed(img, ((w - d.textlength(line, font=body)) // 2, y), line, body, (245, 242, 235, 255))
+        y += line_h
+    if attribution:
+        a = f"— {attribution}"
+        _shadowed(img, ((w - d.textlength(a, font=attr_font)) // 2, y + int(body_size * 0.6)), a, attr_font,
+                  (205, 200, 190, 255))
+    img.save(dest)
+    return dest
+
+
 def fallback_card(title: str, dest: Path, size=(1920, 1080), fonts: list[Path] | None = None) -> Path:
     w, h = size
     img = _paper(size).convert("L").convert("RGB")

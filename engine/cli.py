@@ -305,14 +305,31 @@ def cmd_redo(args) -> int:
     settings, state, _ = _setup(args)
     cleared = pipeline.reset_from(state, args.project_id, args.from_stage)
     project_dir = _project_dir(settings, state, args.project_id)
-    if "render" in cleared:
-        shutil.rmtree(project_dir / "render", ignore_errors=True)
+    if "render" in cleared and (args.fresh or "footage" in cleared):
+        shutil.rmtree(project_dir / "render", ignore_errors=True)  # otherwise finished segments are reused
     if "footage" in cleared:
         (project_dir / "footage.json").unlink(missing_ok=True)
         shutil.rmtree(project_dir / "footage" / "clips", ignore_errors=True)
     print(f"Reset: {', '.join(cleared)}")
     if args.run:
         return 1 if pipeline.run(settings, state, args.project_id) == "failed" else 0
+    return 0
+
+
+def cmd_reshoot(args) -> int:
+    from .stages import footage, shotcheck
+
+    settings, state, _ = _setup(args)
+    ctx = pipeline.build_context(settings, state, args.project_id)
+    footage.reshoot(ctx, args.beats)
+    results = shotcheck.check(ctx, only=args.beats, rounds=0)
+    for b in args.beats:
+        r = results.get(str(b), {})
+        print(f"beat {b}: {'OK' if r.get('ok') else r.get('problem', 'no result')}")
+    print(f"Look again: {ctx.dir / 'shotcheck.html'}")
+    rendered = state.stage(args.project_id, "render")
+    if rendered is not None and rendered["status"] == "done":
+        print(f"Only these beats' segments were removed. Re-render with: de redo {args.project_id} --from render --run")
     return 0
 
 
@@ -440,8 +457,14 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("redo", help="re-run from a stage onward")
     s.add_argument("project_id", type=int)
     s.add_argument("--from", dest="from_stage", required=True, choices=pipeline.STAGE_NAMES)
+    s.add_argument("--fresh", action="store_true", help="also delete rendered segments (e.g. after a grade change)")
     s.add_argument("--run", action="store_true")
     s.set_defaults(fn=cmd_redo)
+
+    s = sub.add_parser("reshoot", help="replace the footage of some beats and re-check them")
+    s.add_argument("project_id", type=int)
+    s.add_argument("beats", type=int, nargs="+")
+    s.set_defaults(fn=cmd_reshoot)
 
     s = sub.add_parser("review", help="path to the review page")
     s.add_argument("project_id", type=int)

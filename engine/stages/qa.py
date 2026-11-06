@@ -86,6 +86,12 @@ def run(ctx) -> None:
         warnings.append(f"{len(fallbacks)} of {archival} footage beats fell back to plain cards (beats {', '.join(fallbacks[:12])})")
     elif archival:
         passes.append(f"Footage found for {archival - len(fallbacks)} of {archival} beats")
+    if (ctx.dir / "shotcheck.json").exists():
+        checked = read_json(ctx.dir / "shotcheck.json")
+        flagged = [k for k, v in checked.items() if not v.get("ok")]
+        (warnings if flagged else passes).append(
+            f"Shot check: {len(checked) - len(flagged)} of {len(checked)} shots fit their line"
+            + (f" (flagged: beats {', '.join(flagged[:12])}; see shotcheck.html)" if flagged else ""))
 
     fc = (ctx.dir / "factcheck.md").read_text(encoding="utf-8") if (ctx.dir / "factcheck.md").exists() else ""
     needs = fc.split("## Still needs your eyes", 1)[-1].split("## Quotes", 1)[0] if fc else ""

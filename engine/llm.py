@@ -149,7 +149,8 @@ class LLM:
             cmd += ["--allowedTools", ",".join(tools)]
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
         if proc.returncode != 0:
-            raise RuntimeError(f"claude CLI failed: {proc.stderr.strip()[:500]}")
+            detail = (proc.stderr.strip() or proc.stdout.strip())[-500:]
+            raise RuntimeError(f"claude CLI failed (exit {proc.returncode}): {detail}")
         payload = json.loads(proc.stdout)
         if payload.get("is_error"):
             raise RuntimeError(f"claude CLI error: {payload.get('result', '')[:500]}")

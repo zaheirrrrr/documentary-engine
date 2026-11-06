@@ -3,6 +3,9 @@
 Sources, each given an id (S1, S2, ...):
 - the main Wikipedia article for the subject
 - period newspaper excerpts from Chronicling America
+- newspaper excerpts you paste by hand into `newspapers.md` in the project
+  folder (see `parse_manual_newspapers`), for when the automatic search is
+  blocked or misses the best pages
 - anything Claude finds with web search during the call (cited by URL)
 
 Every quote the model returns is checked against the fetched source text. A
@@ -38,7 +41,39 @@ def quote_verified(quote: str, source_text: str) -> bool:
     haystack = normalise_for_match(source_text)
     chunks = [normalise_for_match(c) for c in re.split(r"\.\.\.|…", quote)]
     chunks = [c for c in chunks if len(c.split()) >= 4]
-    return bool(chunks) and all(c in haystack for c in chunks)
+    # OCR often breaks a word across lines ("Sam / uel"), so also accept a
+    # match that differs only in spacing.
+    squashed = haystack.replace(" ", "")
+    return bool(chunks) and all(c in haystack or c.replace(" ", "") in squashed for c in chunks)
+
+
+MANUAL_NEWSPAPERS = "newspapers.md"
+
+
+def parse_manual_newspapers(text: str) -> list[dict]:
+    """Parse hand-pasted newspaper finds.
+
+    Each find starts with a `## Paper name, date` heading, then a `URL:` line,
+    then the pasted page text. Lines starting with `>` are template help and
+    are ignored.
+    """
+    finds = []
+    for block in re.split(r"^##\s+", text, flags=re.M)[1:]:
+        heading, _, body = block.partition("\n")
+        url, lines = "", []
+        for line in body.splitlines():
+            if line.startswith(">"):
+                continue
+            m = re.match(r"\s*URL:\s*(\S+)", line, flags=re.I)
+            if m and not url:
+                url = m.group(1).strip("()<>[]")
+                continue
+            lines.append(line)
+        body_text = "\n".join(lines).strip()
+        placeholder = heading.lstrip().startswith(("<", "Example")) or re.fullmatch(r"<[^>]*>", body_text)
+        if heading.strip() and body_text and not placeholder:
+            finds.append({"kind": "newspaper", "title": heading.strip(), "url": url, "text": body_text})
+    return finds
 
 
 def gather_sources(ctx, topic: dict) -> list[dict]:
@@ -61,6 +96,12 @@ def gather_sources(ctx, topic: dict) -> list[dict]:
                                int(ctx.pack.get("research.max_newspaper_pages", 12)))
         for p in pages:
             sources.append({"kind": "newspaper", "title": f"{p['publication']}, {p['date']}", "url": p["url"], "text": p["text"]})
+
+    manual = ctx.dir / MANUAL_NEWSPAPERS
+    if manual.exists():
+        finds = parse_manual_newspapers(manual.read_text(encoding="utf-8"))
+        sources.extend(finds)
+        ctx.log.info("research: %d newspaper finds from %s", len(finds), MANUAL_NEWSPAPERS)
 
     for i, s in enumerate(sources, start=1):
         s["id"] = f"S{i}"

@@ -14,7 +14,14 @@ This repo is a documentary video pipeline. Read README.md first.
 - Network calls go through `util.retry`; raise `util.PermanentError` for
   failures a retry cannot fix (bad key, 4xx).
 - The footage stage must never stop the render: missing footage falls back to
-  a card.
+  a card. A failed vision check is different: footage and shotcheck stop
+  (PermanentError) rather than use unvetted clips.
+- Nothing renders before the review_shots gate. Keep expensive steps
+  (narration, render) behind a human gate, keep every stage resumable, and
+  never delete finished work (segments, clips, audio) to redo a part of it:
+  `footage.reshoot` and render's per-segment resume exist for that.
+- The person running this approves every expensive step (renders, re-searches,
+  narration). Report problems and propose the fix; don't act on it unasked.
 - Never weaken the licence filter in `engine/sources/archive_org.py`.
 - Never let the model rewrite script text after the human script approval;
   `shotlist` splits the approved script in code.
